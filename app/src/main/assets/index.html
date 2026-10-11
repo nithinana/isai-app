@@ -1,6 +1,26 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>
+/* Isai app: forward the page's Media Session to the native notification (no-op in a browser) */
+(function(){
+  var N=window.IsaiNative, ms=navigator.mediaSession;
+  if(!N||!ms) return;
+  var H={}, md=null, ps='none', st={t:'',a:'',al:'',art:'',dur:0,pos:0,rate:1,state:'none'};
+  var send=function(){ try{ N.update(JSON.stringify(st)); }catch(e){} };
+  try{
+    Object.defineProperty(ms,'metadata',{configurable:true,get:function(){return md;},set:function(m){
+      md=m;
+      if(m){ st.t=m.title||''; st.a=m.artist||''; st.al=m.album||''; var aw=m.artwork||[]; st.art=aw.length?aw[Math.min(2,aw.length-1)].src:''; }
+      else { st.t=''; st.art=''; }
+      send(); }});
+    Object.defineProperty(ms,'playbackState',{configurable:true,get:function(){return ps;},set:function(v){ ps=v; st.state=v; send(); }});
+    ms.setPositionState=function(s){ if(!s) return; st.dur=s.duration||0; st.pos=s.position||0; st.rate=s.playbackRate||1; send(); };
+    ms.setActionHandler=function(n,f){ if(f) H[n]=f; else delete H[n]; };
+    window.__isaiMedia=function(n,arg){ var f=H[n]; if(f){ try{ f(arg||{}); }catch(e){} } };
+  }catch(e){}
+})();
+</script>
   <!-- Favicon -->
 <link rel="icon" type="image/png" href="/favicon.png" />
 
@@ -1323,7 +1343,7 @@ body.offline .tr.nodl{opacity:.38}
   <button data-view="liked" title="Library" aria-label="Library"><span data-ic="heart"></span></button>
   <button data-view="downloads" title="Downloads" aria-label="Downloads"><span data-ic="dl"></span></button>
   <button data-view="settings" title="Settings" aria-label="Settings" class="navset"><span data-ic="sliders"></span></button>
-  <button id="pwaInstall" title="Install App" aria-label="Install App"><span data-ic="install"></span></button>
+  
   <span class="sp"></span>
   <button data-view="profile" id="navProfile" title="Profile" aria-label="Profile"><span data-ic="user"></span></button>
 </aside>

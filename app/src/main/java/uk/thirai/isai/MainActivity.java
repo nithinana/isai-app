@@ -7,11 +7,14 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
 
 import androidx.webkit.WebViewAssetLoader;
 
@@ -22,6 +25,9 @@ public class MainActivity extends Activity {
     // UI origin ends in .thirai.uk so both your API's and the account server's CORS accept it.
     private static final String HOST = "apk.thirai.uk";
     private WebView web;
+    private FrameLayout root;
+    private FrameLayout splash;
+    private MediaBridge media;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -38,9 +44,24 @@ public class MainActivity extends Activity {
                 .addPathHandler("/", new WebViewAssetLoader.AssetsPathHandler(this))
                 .build();
 
+        root = new FrameLayout(this);
+        root.setBackgroundColor(Color.parseColor("#0A0A0B"));
         web = new WebView(this);
         web.setBackgroundColor(Color.parseColor("#0A0A0B"));
-        setContentView(web);
+        root.addView(web, new FrameLayout.LayoutParams(-1, -1));
+
+        // Splash: Thirai logo centred over the (still loading) page.
+        splash = new FrameLayout(this);
+        splash.setBackgroundColor(Color.parseColor("#0A0A0B"));
+        splash.setClickable(true);
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.thirai_logo);
+        logo.setAdjustViewBounds(true);
+        int w = (int) (200 * getResources().getDisplayMetrics().density);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(w, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
+        splash.addView(logo, lp);
+        root.addView(splash, new FrameLayout.LayoutParams(-1, -1));
+        setContentView(root);
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -48,6 +69,9 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setAllowFileAccess(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW); // https UI -> http://127.0.0.1 backend
+
+        media = new MediaBridge(this, web);
+        web.addJavascriptInterface(media, "IsaiNative");
 
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -62,13 +86,16 @@ public class MainActivity extends Activity {
                 try { startActivity(new Intent(Intent.ACTION_VIEW, u)); } catch (Exception ignored) {}
                 return true;
             }
+
+            @Override
+            public void onPageFinished(WebView v, String url) {
+                if (url != null && url.startsWith("https://" + HOST)) hideSplash();
+            }
         });
 
         if (state != null) { web.restoreState(state); return; }
 
-        web.loadDataWithBaseURL(null, page("Starting music engine\u2026", ""), "text/html", "utf-8", null);
-
-        // Poll for the Python backend; show its error instead of a blank screen if it fails.
+        // Wait for the Python backend, then load the UI (the splash stays up meanwhile).
         new Thread(() -> {
             long end = System.currentTimeMillis() + 90_000;
             boolean up = false;
@@ -86,13 +113,21 @@ public class MainActivity extends Activity {
                 if (ok) web.loadUrl("https://" + HOST + "/index.html");
                 else {
                     String err = ServerService.lastError != null ? ServerService.lastError : "Timed out waiting for the backend (90 s).";
-                    web.loadDataWithBaseURL(null, page("Backend failed to start", err), "text/html", "utf-8", null);
+                    web.loadDataWithBaseURL(null, errorPage("Backend failed to start", err), "text/html", "utf-8", null);
+                    hideSplash();
                 }
             });
         }, "isai-wait").start();
     }
 
-    private static String page(String title, String detail) {
+    private void hideSplash() {
+        if (splash == null) return;
+        final FrameLayout sp = splash;
+        splash = null;
+        sp.animate().alpha(0f).setDuration(250).withEndAction(() -> root.removeView(sp));
+    }
+
+    private static String errorPage(String title, String detail) {
         return "<html><body style='background:#0a0a0b;color:#f4f4f7;font-family:sans-serif;padding:24px'>"
                 + "<h2>" + android.text.TextUtils.htmlEncode(title) + "</h2>"
                 + "<pre style='white-space:pre-wrap;font-size:11px;color:#a3a3b0'>" + android.text.TextUtils.htmlEncode(detail) + "</pre></body></html>";
@@ -103,5 +138,12 @@ public class MainActivity extends Activity {
     @Override
     public void onBackPressed() {
         if (web.canGoBack()) web.goBack(); else super.onBackPressed();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (media != null) media.release();
+        if (isFinishing()) stopService(new Intent(this, ServerService.class));
+        super.onDestroy();
     }
 }

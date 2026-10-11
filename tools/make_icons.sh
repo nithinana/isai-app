@@ -13,4 +13,9 @@ for pair in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
 done
 cp /tmp/isai-icon.png app/src/main/assets/apple-touch-icon.png
 convert /tmp/isai-icon.png -resize 192x192 app/src/main/assets/favicon.png
+# Thirai logo for the startup screen (falls back to the app icon)
+mkdir -p app/src/main/res/drawable-nodpi
+if curl -fsSL "https://thirai.uk/static/thiraiwhite.png" -o /tmp/thirai-logo.png && convert /tmp/thirai-logo.png PNG32:app/src/main/res/drawable-nodpi/thirai_logo.png; then :; else
+  convert /tmp/isai-icon.png PNG32:app/src/main/res/drawable-nodpi/thirai_logo.png
+fi
 echo "icons ok"
