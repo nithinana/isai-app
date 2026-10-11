@@ -10,10 +10,12 @@
 <!-- Web App Manifest -->
 <link rel="manifest" href="/manifest.json" />
 <meta charset="utf-8">
+<style>.isai-app #pwaInstall{display:none!important}</style>
 <script>
 /* Isai app: native bridge (media notification + background downloads). No-op in a normal browser. */
 (function(){
   var N=window.IsaiNative; if(!N) return;
+  try{ document.documentElement.classList.add('isai-app'); }catch(e){}
   var ms=navigator.mediaSession;
   if(!ms){ ms={}; try{ Object.defineProperty(navigator,'mediaSession',{value:ms,configurable:true}); }catch(e){} }
   if(typeof window.MediaMetadata==='undefined'){ window.MediaMetadata=function(o){ o=o||{}; this.title=o.title||''; this.artist=o.artist||''; this.album=o.album||''; this.artwork=o.artwork||[]; }; }
@@ -1353,7 +1355,7 @@ body.offline .tr.nodl{opacity:.38}
   <button data-view="liked" title="Library" aria-label="Library"><span data-ic="heart"></span></button>
   <button data-view="downloads" title="Downloads" aria-label="Downloads"><span data-ic="dl"></span></button>
   <button data-view="settings" title="Settings" aria-label="Settings" class="navset"><span data-ic="sliders"></span></button>
-  
+  <button id="pwaInstall" title="Install App" aria-label="Install App"><span data-ic="install"></span></button>
   <span class="sp"></span>
   <button data-view="profile" id="navProfile" title="Profile" aria-label="Profile"><span data-ic="user"></span></button>
 </aside>
@@ -1469,13 +1471,22 @@ hydrate(document);
 function fillRange(el){ el.style.setProperty('--p', ((el.value - el.min) / (el.max - el.min) * 100) + '%'); }
 
 /* ---------- API + covers ---------- */
-const defBase = 'http://127.0.0.1:8765';
+const PUBLIC_API = 'https://isaiapi.thirai.uk';
+const MIN_API = 0;   /* raise when the frontend needs endpoints an older on-device backend lacks */
+const localApi = (() => {
+  try {
+    if (window.IsaiNative && IsaiNative.backendInfo) {
+      const i = JSON.parse(IsaiNative.backendInfo() || 'null');
+      if (i && i.url && (i.api || 0) >= MIN_API) return i.url;
+    }
+  } catch (e) {}
+  return '';
+})();
+const defBase = localApi || PUBLIC_API;
 const base = () => {
-  let b = store.get('base', defBase);
-  if (!b || b === 'https://ytdlpapi-jd2j.onrender.com') {
-    b = defBase;
-    store.set('base', defBase);
-  }
+  let b = store.get('base', '');
+  /* only a server the user typed in themselves is remembered; auto-picked ones never are */
+  if (!b || b === 'https://ytdlpapi-jd2j.onrender.com' || b === 'http://127.0.0.1:8765' || b === PUBLIC_API) b = defBase;
   return b.replace(/\/$/, '');
 };
 const LANGS = ['english', 'tamil', 'both'];

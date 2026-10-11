@@ -45,6 +45,7 @@ public class MediaBridge {
     private float rate = 1f;
     private long posWall = 0;
     private Bitmap art;
+    private volatile String backendInfo = "";
     private PowerManager.WakeLock wl;
 
     MediaBridge(Activity a, WebView w) {
@@ -83,6 +84,12 @@ public class MediaBridge {
         final String code = "window.__isaiMedia&&window.__isaiMedia('" + name + "'" + (arg != null ? "," + arg : "") + ")";
         main.post(() -> web.evaluateJavascript(code, null));
     }
+
+    /** JSON like {"url":"http://127.0.0.1:8765","api":0} when the on-device backend is up, else "". */
+    @JavascriptInterface
+    public String backendInfo() { return backendInfo; }
+
+    void setBackendInfo(String info) { backendInfo = info == null ? "" : info; }
 
     /** The page's bridge script calls this once it has loaded (proves the page can reach the app). */
     @JavascriptInterface

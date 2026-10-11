@@ -2,12 +2,17 @@ package uk.thirai.isai;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -18,21 +23,31 @@ import android.widget.ImageView;
 
 import androidx.webkit.WebViewAssetLoader;
 
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.URL;
 
 public class MainActivity extends Activity {
-    // UI origin ends in .thirai.uk so both your API's and the account server's CORS accept it.
-    private static final String HOST = "apk.thirai.uk";
+    /** The live site. Same page for browser and app; it picks its own API (see isai_patch_index.py). */
+    private static final String HOST = "isai.thirai.uk";
+    private static final String ROOT = "https://" + HOST + "/";
+    private static final String LOCAL = "http://127.0.0.1:" + ServerService.PORT;
+
     private WebView web;
     private FrameLayout root;
     private FrameLayout splash;
     private MediaBridge media;
+    private volatile boolean forceBundled = false;   // serve the bundled copy of the site (same origin)
 
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        android.util.Log.d("Isai", "MainActivity created, build 2.1");
+        android.util.Log.d("Isai", "MainActivity created, build 2.2 (live site)");
 
         if (Build.VERSION.SDK_INT >= 33) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
@@ -40,7 +55,9 @@ public class MainActivity extends Activity {
         Intent svc = new Intent(this, ServerService.class);
         if (Build.VERSION.SDK_INT >= 26) startForegroundService(svc); else startService(svc);
 
-        final WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
+        // Bundled copy of the site: only used when offline (or the site is down). Same host => same
+        // origin, so localStorage / IndexedDB downloads / service worker are shared with the live site.
+        final WebViewAssetLoader bundled = new WebViewAssetLoader.Builder()
                 .setDomain(HOST)
                 .addPathHandler("/", new WebViewAssetLoader.AssetsPathHandler(this))
                 .build();
@@ -51,7 +68,6 @@ public class MainActivity extends Activity {
         web.setBackgroundColor(Color.parseColor("#0A0A0B"));
         root.addView(web, new FrameLayout.LayoutParams(-1, -1));
 
-        // Splash: Thirai logo centred over the (still loading) page.
         splash = new FrameLayout(this);
         splash.setBackgroundColor(Color.parseColor("#0A0A0B"));
         splash.setClickable(true);
@@ -59,8 +75,7 @@ public class MainActivity extends Activity {
         logo.setImageResource(R.drawable.thirai_logo);
         logo.setAdjustViewBounds(true);
         int w = (int) (200 * getResources().getDisplayMetrics().density);
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(w, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
-        splash.addView(logo, lp);
+        splash.addView(logo, new FrameLayout.LayoutParams(w, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
         root.addView(splash, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
 
@@ -69,16 +84,22 @@ public class MainActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setAllowFileAccess(false);
-        s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW); // https UI -> http://127.0.0.1 backend
+        s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW); // https site -> http://127.0.0.1 backend
+        if (Build.VERSION.SDK_INT >= 26) web.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false);
 
-        if (Build.VERSION.SDK_INT >= 26) web.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false); // keep the page alive in the background
         media = new MediaBridge(this, web);
         web.addJavascriptInterface(media, "IsaiNative");
 
         web.setWebViewClient(new WebViewClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) {
-                return loader.shouldInterceptRequest(r.getUrl());
+                Uri u = r.getUrl();
+                if (HOST.equals(u.getHost()) && (forceBundled || !online())) {
+                    String path = u.getPath();
+                    if (path == null || path.isEmpty() || "/".equals(path)) u = u.buildUpon().path("/index.html").build();
+                    return bundled.shouldInterceptRequest(u);   // null for files we don't bundle
+                }
+                return null;
             }
 
             @Override
@@ -90,6 +111,14 @@ public class MainActivity extends Activity {
             }
 
             @Override
+            public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e) {
+                if (r.isForMainFrame() && HOST.equals(r.getUrl().getHost()) && !forceBundled) {
+                    forceBundled = true;            // site unreachable: fall back to the bundled copy once
+                    v.loadUrl(ROOT);
+                }
+            }
+
+            @Override
             public void onPageFinished(WebView v, String url) {
                 if (url != null && url.startsWith("https://" + HOST)) hideSplash();
             }
@@ -97,9 +126,10 @@ public class MainActivity extends Activity {
 
         if (state != null) { web.restoreState(state); return; }
 
-        // Wait for the Python backend, then load the UI (the splash stays up meanwhile).
+        // Wait (max 25 s) for the on-device backend, tell the page about it, then load the site.
+        // If it never comes up the page simply uses the public API.
         new Thread(() -> {
-            long end = System.currentTimeMillis() + 90_000;
+            long end = System.currentTimeMillis() + 25_000;
             boolean up = false;
             while (System.currentTimeMillis() < end && ServerService.lastError == null) {
                 try (Socket sock = new Socket()) {
@@ -110,16 +140,39 @@ public class MainActivity extends Activity {
                     try { Thread.sleep(300); } catch (InterruptedException ignored) {}
                 }
             }
-            final boolean ok = up;
-            runOnUiThread(() -> {
-                if (ok) web.loadUrl("https://" + HOST + "/index.html");
-                else {
-                    String err = ServerService.lastError != null ? ServerService.lastError : "Timed out waiting for the backend (90 s).";
-                    web.loadDataWithBaseURL(null, errorPage("Backend failed to start", err), "text/html", "utf-8", null);
-                    hideSplash();
+            String info = "";
+            if (up) {
+                int api = 0;
+                try {
+                    HttpURLConnection c = (HttpURLConnection) new URL(LOCAL + "/health").openConnection();
+                    c.setConnectTimeout(2000); c.setReadTimeout(4000);
+                    try (InputStream in = c.getInputStream()) {
+                        ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                        byte[] buf = new byte[4096]; int n;
+                        while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+                        api = new JSONObject(bo.toString("UTF-8")).optInt("api_version", 0);
+                    }
+                    c.disconnect();
+                    info = new JSONObject().put("url", LOCAL).put("api", api).toString();
+                } catch (Exception e) {
+                    android.util.Log.d("Isai", "local /health failed: " + e);
                 }
-            });
+            }
+            android.util.Log.d("Isai", "backendInfo=" + (info.isEmpty() ? "(none, using public API)" : info));
+            media.setBackendInfo(info);
+            runOnUiThread(() -> web.loadUrl(ROOT));
         }, "isai-wait").start();
+    }
+
+    private boolean online() {
+        try {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            Network n = cm.getActiveNetwork();
+            NetworkCapabilities c = n == null ? null : cm.getNetworkCapabilities(n);
+            return c != null && c.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+        } catch (Exception e) {
+            return true;
+        }
     }
 
     private void hideSplash() {
@@ -127,12 +180,6 @@ public class MainActivity extends Activity {
         final FrameLayout sp = splash;
         splash = null;
         sp.animate().alpha(0f).setDuration(250).withEndAction(() -> root.removeView(sp));
-    }
-
-    private static String errorPage(String title, String detail) {
-        return "<html><body style='background:#0a0a0b;color:#f4f4f7;font-family:sans-serif;padding:24px'>"
-                + "<h2>" + android.text.TextUtils.htmlEncode(title) + "</h2>"
-                + "<pre style='white-space:pre-wrap;font-size:11px;color:#a3a3b0'>" + android.text.TextUtils.htmlEncode(detail) + "</pre></body></html>";
     }
 
     @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); }
