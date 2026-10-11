@@ -1532,6 +1532,20 @@ async function api(path){
   }
   return r;
 }
+/* lyrics always come from the public API (never the on-device backend) */
+async function apiPublic(path){
+  if (!window.__unlocked) throw new Error('Sign in required');
+  if (!navigator.onLine) throw new Error("You're offline");
+  let r;
+  try { r = await fetch(PUBLIC_API + path, { headers: hd() }); }
+  catch { throw new Error('Cannot reach the API at ' + PUBLIC_API); }
+  if (!r.ok) {
+    let m = r.statusText;
+    try { m = (await r.json()).detail || m } catch {}
+    throw new Error(m);
+  }
+  return r;
+}
 const GOOG = /googleusercontent\.com|ggpht\.com/;
 const extras = {};                       // trackId -> { url, obj, cover, lyrics, v }  (offline cover + lyrics for downloads)
 const cov = (t, s = 320) => {
@@ -2808,7 +2822,7 @@ async function fetchCoverBlob(t){
 async function fetchLyricsData(t){
   const isrc = isrcs[t.id] || '';
   const qs = new URLSearchParams(Object.entries({ title: t.title, artist: t.artist, isrc, album: t.album || '', duration: Math.round(t.duration || 0) || '', source: 'auto' }).filter(([, v]) => v));
-  return await (await api(`/lyrics/${t.id}?${qs}`)).json();
+  return await (await apiPublic(`/lyrics/${t.id}?${qs}`)).json();
 }
 /* downloads a song's cover + lyrics and stores them next to the audio; resolves true when everything that exists was saved */
 function saveExtras(t){
@@ -4688,7 +4702,7 @@ function lyGet(t, src){
   const qs = new URLSearchParams(Object.entries({ title: t.title, artist: t.artist, isrc, album: t.album || '', duration: Math.round(t.duration || 0) || '', source: src }).filter(([, v]) => v));
   return lyInflight[key] = (async () => {
     try {
-      const d = await (await api(`/lyrics/${t.id}?${qs}`)).json();
+      const d = await (await apiPublic(`/lyrics/${t.id}?${qs}`)).json();
       lyCache[key] = d;
       if (d.found && d.lines && d.lines.length && src === 'auto' && dls.some(x => x.id === t.id) && !(extras[t.id] && extras[t.id].lyrics)) saveExtraLyrics(t, d);
       return d;
