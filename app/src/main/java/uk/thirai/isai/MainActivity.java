@@ -1,9 +1,11 @@
 package uk.thirai.isai;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -13,15 +15,23 @@ import android.webkit.WebViewClient;
 
 import androidx.webkit.WebViewAssetLoader;
 
+import java.net.InetSocketAddress;
+import java.net.Socket;
+
 public class MainActivity extends Activity {
-    // The bundled index.html is served from this virtual host. It ends in .thirai.uk so the
-    // backend's existing CORS rule (^https://([a-z0-9-]+\.)?thirai\.uk$) accepts it unchanged.
+    // UI origin ends in .thirai.uk so both your API's and the account server's CORS accept it.
     private static final String HOST = "apk.thirai.uk";
     private WebView web;
 
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+
+        if (Build.VERSION.SDK_INT >= 33) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
+        }
+        Intent svc = new Intent(this, ServerService.class);
+        if (Build.VERSION.SDK_INT >= 26) startForegroundService(svc); else startService(svc);
 
         final WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
                 .setDomain(HOST)
@@ -37,6 +47,7 @@ public class MainActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setAllowFileAccess(false);
+        s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW); // https UI -> http://127.0.0.1 backend
 
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -53,8 +64,21 @@ public class MainActivity extends Activity {
             }
         });
 
-        if (state != null) web.restoreState(state);
-        else web.loadUrl("https://" + HOST + "/index.html");
+        if (state != null) { web.restoreState(state); return; }
+
+        // Wait (up to 90 s) for the Python backend to accept connections, then load the UI.
+        new Thread(() -> {
+            long end = System.currentTimeMillis() + 90_000;
+            while (System.currentTimeMillis() < end) {
+                try (Socket sock = new Socket()) {
+                    sock.connect(new InetSocketAddress("127.0.0.1", ServerService.PORT), 400);
+                    break;
+                } catch (Exception e) {
+                    try { Thread.sleep(300); } catch (InterruptedException ignored) {}
+                }
+            }
+            runOnUiThread(() -> web.loadUrl("https://" + HOST + "/index.html"));
+        }, "isai-wait").start();
     }
 
     @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); }

@@ -1439,7 +1439,7 @@ hydrate(document);
 function fillRange(el){ el.style.setProperty('--p', ((el.value - el.min) / (el.max - el.min) * 100) + '%'); }
 
 /* ---------- API + covers ---------- */
-const defBase = 'https://isaiapi.thirai.uk';
+const defBase = 'http://127.0.0.1:8765';
 const base = () => {
   let b = store.get('base', defBase);
   if (!b || b === 'https://ytdlpapi-jd2j.onrender.com') {
