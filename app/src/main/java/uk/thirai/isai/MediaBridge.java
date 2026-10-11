@@ -84,6 +84,12 @@ public class MediaBridge {
         main.post(() -> web.evaluateJavascript(code, null));
     }
 
+    /** The page's bridge script calls this once it has loaded (proves the page can reach the app). */
+    @JavascriptInterface
+    public void hello(String info) {
+        android.util.Log.d("Isai", "shim hello " + info);
+    }
+
     /** Called from the page (see the shim at the top of index.html). */
     @JavascriptInterface
     public void update(String json) {

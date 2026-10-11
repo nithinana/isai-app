@@ -28,7 +28,13 @@
     Object.defineProperty(ms,'playbackState',{configurable:true,get:function(){return ps;},set:function(v){ ps=v; st.state=v; send(); }});
     ms.setPositionState=function(s){ if(!s) return; st.dur=s.duration||0; st.pos=s.position||0; st.rate=s.playbackRate||1; send(); };
     ms.setActionHandler=function(n,f){ if(f) H[n]=f; else delete H[n]; };
-    window.__isaiMedia=function(n,arg){ var f=H[n]; if(f){ try{ f(arg||{}); }catch(e){} } };
+    window.__isaiMedia=function(n,arg){
+      var f=H[n];
+      if(f){ try{ f(arg||{}); }catch(e){} return; }
+      var id={play:'pp',pause:'pp',nexttrack:'next',previoustrack:'prev'}[n];
+      var el=id&&document.getElementById(id); if(el) el.click();
+    };
+    try{ N.hello(JSON.stringify({ms:!!navigator.mediaSession,meta:typeof MediaMetadata})); }catch(e){}
   }catch(e){}
   /* tell the app when downloads are running so it keeps the CPU awake in the background */
   setInterval(function(){ try{ N.downloads(Object.keys(dlActive).length); }catch(e){} }, 2000);
