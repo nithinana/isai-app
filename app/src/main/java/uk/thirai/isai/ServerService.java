@@ -15,6 +15,7 @@ import com.chaquo.python.Python;
 public class ServerService extends Service {
     public static final int PORT = 8765;
     private static boolean started = false;
+    public static volatile String lastError = null;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -37,6 +38,7 @@ public class ServerService extends Service {
                         Python.getInstance().getModule("isai_launcher").callAttr("start", PORT);
                     } catch (Throwable t) {
                         android.util.Log.e("Isai", "backend crashed", t);
+                        lastError = android.util.Log.getStackTraceString(t);
                         synchronized (ServerService.class) { started = false; }
                     }
                 }, "isai-server").start();

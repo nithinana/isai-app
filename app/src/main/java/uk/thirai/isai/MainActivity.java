@@ -66,19 +66,36 @@ public class MainActivity extends Activity {
 
         if (state != null) { web.restoreState(state); return; }
 
-        // Wait (up to 90 s) for the Python backend to accept connections, then load the UI.
+        web.loadDataWithBaseURL(null, page("Starting music engine\u2026", ""), "text/html", "utf-8", null);
+
+        // Poll for the Python backend; show its error instead of a blank screen if it fails.
         new Thread(() -> {
             long end = System.currentTimeMillis() + 90_000;
-            while (System.currentTimeMillis() < end) {
+            boolean up = false;
+            while (System.currentTimeMillis() < end && ServerService.lastError == null) {
                 try (Socket sock = new Socket()) {
                     sock.connect(new InetSocketAddress("127.0.0.1", ServerService.PORT), 400);
+                    up = true;
                     break;
                 } catch (Exception e) {
                     try { Thread.sleep(300); } catch (InterruptedException ignored) {}
                 }
             }
-            runOnUiThread(() -> web.loadUrl("https://" + HOST + "/index.html"));
+            final boolean ok = up;
+            runOnUiThread(() -> {
+                if (ok) web.loadUrl("https://" + HOST + "/index.html");
+                else {
+                    String err = ServerService.lastError != null ? ServerService.lastError : "Timed out waiting for the backend (90 s).";
+                    web.loadDataWithBaseURL(null, page("Backend failed to start", err), "text/html", "utf-8", null);
+                }
+            });
         }, "isai-wait").start();
+    }
+
+    private static String page(String title, String detail) {
+        return "<html><body style='background:#0a0a0b;color:#f4f4f7;font-family:sans-serif;padding:24px'>"
+                + "<h2>" + android.text.TextUtils.htmlEncode(title) + "</h2>"
+                + "<pre style='white-space:pre-wrap;font-size:11px;color:#a3a3b0'>" + android.text.TextUtils.htmlEncode(detail) + "</pre></body></html>";
     }
 
     @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); }
