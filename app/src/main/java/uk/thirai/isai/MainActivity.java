@@ -70,6 +70,7 @@ public class MainActivity extends Activity {
         s.setAllowFileAccess(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW); // https UI -> http://127.0.0.1 backend
 
+        if (Build.VERSION.SDK_INT >= 26) web.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false); // keep the page alive in the background
         media = new MediaBridge(this, web);
         web.addJavascriptInterface(media, "IsaiNative");
 

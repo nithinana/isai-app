@@ -18,6 +18,7 @@ import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 
@@ -44,6 +45,7 @@ public class MediaBridge {
     private float rate = 1f;
     private long posWall = 0;
     private Bitmap art;
+    private PowerManager.WakeLock wl;
 
     MediaBridge(Activity a, WebView w) {
         ctx = a;
@@ -53,6 +55,7 @@ public class MediaBridge {
             nm.createNotificationChannel(new NotificationChannel(CH, "Now playing", NotificationManager.IMPORTANCE_LOW));
         }
         session = new MediaSession(a, "Isai");
+        session.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
         session.setCallback(new MediaSession.Callback() {
             @Override public void onPlay() { js("play"); }
             @Override public void onPause() { js("pause"); }
@@ -84,6 +87,7 @@ public class MediaBridge {
     /** Called from the page (see the shim at the top of index.html). */
     @JavascriptInterface
     public void update(String json) {
+        android.util.Log.d("Isai", "media update " + json);
         try {
             JSONObject o = new JSONObject(json);
             final String t = o.optString("t"), ar = o.optString("a"), al = o.optString("al"),
@@ -92,6 +96,22 @@ public class MediaBridge {
             final float r = (float) o.optDouble("rate", 1);
             main.post(() -> apply(t, ar, al, au, s, d, p, r));
         } catch (Exception ignored) {}
+    }
+
+    /** Page reports how many downloads are running; hold the CPU awake for them while backgrounded. */
+    @JavascriptInterface
+    public void downloads(final int n) {
+        main.post(() -> {
+            if (n > 0) {
+                if (wl == null) {
+                    wl = ((PowerManager) ctx.getSystemService(Context.POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "isai:downloads");
+                    wl.setReferenceCounted(false);
+                }
+                wl.acquire(10 * 60 * 1000L);   // refreshed every 2 s while downloads are active
+            } else if (wl != null && wl.isHeld()) {
+                wl.release();
+            }
+        });
     }
 
     private void apply(String t, String ar, String al, String au, String s, double d, double p, float r) {
@@ -166,6 +186,7 @@ public class MediaBridge {
 
     void release() {
         try { ctx.unregisterReceiver(receiver); } catch (Exception ignored) {}
+        if (wl != null && wl.isHeld()) wl.release();
         nm.cancel(NID);
         session.release();
     }

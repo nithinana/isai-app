@@ -1,11 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <!-- Favicon -->
+<link rel="icon" type="image/png" href="/favicon.png" />
+
+<!-- Apple Touch Icon (iOS Homescreen) -->
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+<!-- Web App Manifest -->
+<link rel="manifest" href="/manifest.json" />
+<meta charset="utf-8">
 <script>
-/* Isai app: forward the page's Media Session to the native notification (no-op in a browser) */
+/* Isai app: native bridge (media notification + background downloads). No-op in a normal browser. */
 (function(){
-  var N=window.IsaiNative, ms=navigator.mediaSession;
-  if(!N||!ms) return;
+  var N=window.IsaiNative; if(!N) return;
+  var ms=navigator.mediaSession;
+  if(!ms){ ms={}; try{ Object.defineProperty(navigator,'mediaSession',{value:ms,configurable:true}); }catch(e){} }
+  if(typeof window.MediaMetadata==='undefined'){ window.MediaMetadata=function(o){ o=o||{}; this.title=o.title||''; this.artist=o.artist||''; this.album=o.album||''; this.artwork=o.artwork||[]; }; }
   var H={}, md=null, ps='none', st={t:'',a:'',al:'',art:'',dur:0,pos:0,rate:1,state:'none'};
   var send=function(){ try{ N.update(JSON.stringify(st)); }catch(e){} };
   try{
@@ -19,17 +30,10 @@
     ms.setActionHandler=function(n,f){ if(f) H[n]=f; else delete H[n]; };
     window.__isaiMedia=function(n,arg){ var f=H[n]; if(f){ try{ f(arg||{}); }catch(e){} } };
   }catch(e){}
+  /* tell the app when downloads are running so it keeps the CPU awake in the background */
+  setInterval(function(){ try{ N.downloads(Object.keys(dlActive).length); }catch(e){} }, 2000);
 })();
 </script>
-  <!-- Favicon -->
-<link rel="icon" type="image/png" href="/favicon.png" />
-
-<!-- Apple Touch Icon (iOS Homescreen) -->
-<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-
-<!-- Web App Manifest -->
-<link rel="manifest" href="/manifest.json" />
-<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Isai</title>
 <link rel="manifest" href="manifest.json">
