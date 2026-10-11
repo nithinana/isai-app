@@ -24,7 +24,7 @@
   try{
     Object.defineProperty(ms,'metadata',{configurable:true,get:function(){return md;},set:function(m){
       md=m;
-      if(m){ st.t=m.title||''; st.a=m.artist||''; st.al=m.album||''; var aw=m.artwork||[]; st.art=aw.length?aw[Math.min(2,aw.length-1)].src:''; }
+      if(m){ st.t=m.title||''; st.a=m.artist||''; st.al=m.album||''; var aw=m.artwork||[], best=null, bs=-1; aw.forEach(function(x){ var z=parseInt(x.sizes)||0; if(z>=bs){ bs=z; best=x; } }); st.art=best?best.src:''; }
       else { st.t=''; st.art=''; }
       send(); }});
     Object.defineProperty(ms,'playbackState',{configurable:true,get:function(){return ps;},set:function(v){ ps=v; st.state=v; send(); }});
@@ -39,7 +39,18 @@
     try{ N.hello(JSON.stringify({ms:!!navigator.mediaSession,meta:typeof MediaMetadata})); }catch(e){}
   }catch(e){}
   /* tell the app when downloads are running so it keeps the CPU awake in the background */
-  setInterval(function(){ try{ N.downloads(Object.keys(dlActive).length); }catch(e){} }, 2000);
+  setInterval(function(){
+    try{
+      var act=Object.keys(dlActive).map(function(k){ return dlActive[k]; }), n=act.length;
+      var jobs=(typeof dlJobs!=='undefined'&&dlJobs)||[], T=0, D=0, label='';
+      jobs.forEach(function(j){ T+=j.total||0; D+=(j.done||0)+(j.fail||0); if(!label&&j.label) label=j.label; });
+      var frac=0, c=0; act.forEach(function(a){ if(a.total>0){ frac+=Math.min(1,a.loaded/a.total); c++; } });
+      var pct=-1; if(T>0) pct=Math.round(Math.min(100,(D+frac)/T*100)); else if(c) pct=Math.round(frac/c*100);
+      var busy=n>0||jobs.some(function(j){ return !j.stop && (j.todo||[]).length>0; });
+      N.downloads(n);
+      if(N.downloadStatus) N.downloadStatus(JSON.stringify({busy:busy,n:n,title:n&&act[0].t?act[0].t.title:'',pct:pct,done:D,total:T,label:label}));
+    }catch(e){}
+  }, 1500);
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">

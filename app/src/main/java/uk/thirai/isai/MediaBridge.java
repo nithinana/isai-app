@@ -31,6 +31,8 @@ import java.net.URL;
 public class MediaBridge {
     private static final String CH = "isai_media";
     private static final int NID = 2;
+    private static final int DL_ID = 3;
+    private static final String CH_DL = "isai_dl";
     private static final String A_PREV = "uk.thirai.isai.PREV", A_PP = "uk.thirai.isai.PP", A_NEXT = "uk.thirai.isai.NEXT";
 
     private final Activity ctx;
@@ -45,6 +47,8 @@ public class MediaBridge {
     private float rate = 1f;
     private long posWall = 0;
     private Bitmap art;
+    private boolean dlShown = false;
+    private int dlIdle = 0;
     private volatile String backendInfo = "";
     private PowerManager.WakeLock wl;
 
@@ -54,6 +58,7 @@ public class MediaBridge {
         nm = a.getSystemService(NotificationManager.class);
         if (Build.VERSION.SDK_INT >= 26) {
             nm.createNotificationChannel(new NotificationChannel(CH, "Now playing", NotificationManager.IMPORTANCE_LOW));
+            nm.createNotificationChannel(new NotificationChannel(CH_DL, "Downloads", NotificationManager.IMPORTANCE_LOW));
         }
         session = new MediaSession(a, "Isai");
         session.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
@@ -127,6 +132,43 @@ public class MediaBridge {
         });
     }
 
+    /** Page reports download progress every 1.5 s; show it as a progress notification. */
+    @JavascriptInterface
+    public void downloadStatus(final String json) {
+        main.post(() -> {
+            try {
+                JSONObject o = new JSONObject(json);
+                boolean busy = o.optBoolean("busy");
+                if (busy) {
+                    dlIdle = 0; dlShown = true;
+                    int n = o.optInt("n"), done = o.optInt("done"), total = o.optInt("total"), pct = o.optInt("pct", -1);
+                    String cur = o.optString("title"), label = o.optString("label");
+                    String head = total > 1 ? "Downloading " + Math.min(done + 1, total) + " of " + total
+                            : (n > 1 ? "Downloading " + n + " songs" : "Downloading song");
+                    String text = !cur.isEmpty() ? cur : (!label.isEmpty() ? label : "Preparing\u2026");
+                    Notification.Builder b = dlBuilder().setContentTitle(head).setContentText(text)
+                            .setOngoing(true).setProgress(100, Math.max(pct, 0), pct < 0);
+                    if (pct >= 0) b.setSubText(pct + "%");
+                    nm.notify(DL_ID, b.build());
+                } else if (dlShown && ++dlIdle >= 2) {
+                    dlShown = false;
+                    Notification.Builder fb = dlBuilder().setContentTitle("Downloads finished")
+                            .setContentText("Saved for offline listening").setAutoCancel(true);
+                    if (Build.VERSION.SDK_INT >= 26) fb.setTimeoutAfter(8000);
+                    nm.notify(DL_ID, fb.build());
+                }
+            } catch (Exception ignored) {}
+        });
+    }
+
+    private Notification.Builder dlBuilder() {
+        Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(ctx, CH_DL) : new Notification.Builder(ctx);
+        PendingIntent open = PendingIntent.getActivity(ctx, 1,
+                new Intent(ctx, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
+                PendingIntent.FLAG_IMMUTABLE);
+        return b.setSmallIcon(R.drawable.ic_stat_isai).setContentIntent(open).setOnlyAlertOnce(true).setShowWhen(false);
+    }
+
     private void apply(String t, String ar, String al, String au, String s, double d, double p, float r) {
         boolean changed = !t.equals(title) || !ar.equals(artist) || !al.equals(album) || !s.equals(state)
                 || Math.abs(d - dur) > 0.5 || r != rate;
@@ -141,16 +183,35 @@ public class MediaBridge {
         if (changed) publish();
     }
 
+    /** Ask the cover endpoint / Google thumbnails for a bigger image than the page's 256 px pick. */
+    private static String hiRes(String url) {
+        String u = url.replaceAll("([?&]s=)\\d+", "$1800");
+        u = u.replaceAll("=w\\d+-h\\d+", "=w800-h800");
+        return u;
+    }
+
+    private static Bitmap download(String url) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        c.setConnectTimeout(8000); c.setReadTimeout(10000);
+        try {
+            Bitmap b = BitmapFactory.decodeStream(c.getInputStream());
+            if (b != null && Math.max(b.getWidth(), b.getHeight()) > 900) {
+                float k = 900f / Math.max(b.getWidth(), b.getHeight());
+                b = Bitmap.createScaledBitmap(b, Math.round(b.getWidth() * k), Math.round(b.getHeight() * k), true);
+            }
+            return b;
+        } finally { c.disconnect(); }
+    }
+
     private void fetchArt(final String url) {
         if (url.isEmpty()) return;
         new Thread(() -> {
-            try {
-                HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-                c.setConnectTimeout(8000); c.setReadTimeout(8000);
-                Bitmap b = BitmapFactory.decodeStream(c.getInputStream());
-                c.disconnect();
-                if (b != null) main.post(() -> { if (url.equals(artUrl)) { art = b; publish(); } });
-            } catch (Exception ignored) {}
+            Bitmap b = null;
+            String hi = hiRes(url);
+            try { b = download(hi); } catch (Exception ignored) {}
+            if (b == null && !hi.equals(url)) { try { b = download(url); } catch (Exception ignored) {} }
+            final Bitmap bmp = b;
+            if (bmp != null) main.post(() -> { if (url.equals(artUrl)) { art = bmp; publish(); } });
         }, "isai-art").start();
     }
 
@@ -171,7 +232,7 @@ public class MediaBridge {
                 .putString(MediaMetadata.METADATA_KEY_ARTIST, artist)
                 .putString(MediaMetadata.METADATA_KEY_ALBUM, album)
                 .putLong(MediaMetadata.METADATA_KEY_DURATION, (long) (dur * 1000));
-        if (art != null) mb.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, art);
+        if (art != null) { mb.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, art); mb.putBitmap(MediaMetadata.METADATA_KEY_ART, art); }
         session.setMetadata(mb.build());
         session.setPlaybackState(new PlaybackState.Builder()
                 .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_PLAY_PAUSE
@@ -184,7 +245,7 @@ public class MediaBridge {
         PendingIntent open = PendingIntent.getActivity(ctx, 0,
                 new Intent(ctx, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
                 PendingIntent.FLAG_IMMUTABLE);
-        b.setSmallIcon(android.R.drawable.ic_media_play)
+        b.setSmallIcon(R.drawable.ic_stat_isai)
                 .setContentTitle(title).setContentText(artist)
                 .setContentIntent(open).setOngoing(playing).setOnlyAlertOnce(true).setShowWhen(false)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
@@ -201,6 +262,7 @@ public class MediaBridge {
         try { ctx.unregisterReceiver(receiver); } catch (Exception ignored) {}
         if (wl != null && wl.isHeld()) wl.release();
         nm.cancel(NID);
+        nm.cancel(DL_ID);
         session.release();
     }
 }

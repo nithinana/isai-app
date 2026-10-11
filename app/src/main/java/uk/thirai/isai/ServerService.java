@@ -26,7 +26,7 @@ public class ServerService extends Service {
         }
         Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, channel) : new Notification.Builder(this);
         Notification n = b.setContentTitle("Isai").setContentText("Backend running in the background")
-                .setSmallIcon(android.R.drawable.ic_media_play).setOngoing(true).build();
+                .setSmallIcon(R.drawable.ic_stat_isai).setOngoing(true).build();
         if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
         else startForeground(1, n);
 
