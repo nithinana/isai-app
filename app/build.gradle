@@ -23,7 +23,7 @@ chaquopy {
             install "yt-dlp"
             install "ytmusicapi"
             install "fastapi==0.99.1"
-            install "pydantic==1.10.13"
+            install "pydantic>=1.10.17,<2"
             install "uvicorn==0.30.6"
             install "Pillow"
         }
