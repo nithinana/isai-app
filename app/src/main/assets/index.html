@@ -2340,6 +2340,17 @@ let a = $('audio'), standby = mkMedia(), pending = false, loading = false;   // 
 standby.preload = 'auto';
 let resume = { id: null, n: 0 }, lastAuto = 0;   // guards against streams that report 'ended' early
 const resetSeek = () => { $('seek').value = $('mseek').value = 0; fillRange($('seek')); fillRange($('mseek')); $('mprog').style.width = '0'; };
+function prefetchNext(){
+  try {
+    if (shuffle || queue.length < 2 || !navigator.onLine) return;
+    const ids = [];
+    for (let k = 1; k <= 2; k++) {
+      const t = queue[(qi + k) % queue.length];
+      if (t && t.id && t.id !== (current && current.id) && !ids.includes(t.id) && !dls.some(d => d.id === t.id)) ids.push(t.id);
+    }
+    if (ids.length) api('/prefetch?ids=' + ids.join(',')).catch(() => {});   /* older backends just 404: ignored */
+  } catch {}
+}
 async function playCurrent(startAt = 0){
   const t = queue[qi]; if (!t) return;
   const my = ++token; current = t; loading = true;
@@ -2388,7 +2399,7 @@ async function playCurrent(startAt = 0){
     $('mpp').classList.remove('loading');
     resetSeek(); $('dur').textContent = $('mdur').textContent = '-' + fmt(n.duration || t.duration);
     if (startAt > 1) { try { a.currentTime = startAt; } catch {} }
-    await a.play(); setPP(); addRecent(t);
+    await a.play(); setPP(); addRecent(t); prefetchNext();
   } catch (e) {
     if (my === token) {
       pending = false; loading = false;
