@@ -182,6 +182,12 @@ public class MainActivity extends Activity {
         sp.animate().alpha(0f).setDuration(250).withEndAction(() -> root.removeView(sp));
     }
 
+    @Override
+    protected void onActivityResult(int req, int res, Intent data) {
+        if (media != null && media.onActivityResult(req, res, data)) return;   // "Save as" dialog result
+        super.onActivityResult(req, res, data);
+    }
+
     @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); }
 
     @Override

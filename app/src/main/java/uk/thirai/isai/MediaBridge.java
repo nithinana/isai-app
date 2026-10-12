@@ -15,15 +15,18 @@ import android.graphics.drawable.Icon;
 import android.media.MediaMetadata;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.provider.DocumentsContract;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 
 import org.json.JSONObject;
 
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
@@ -33,6 +36,7 @@ public class MediaBridge {
     private static final int NID = 2;
     private static final int DL_ID = 3;
     private static final String CH_DL = "isai_dl";
+    static final int REQ_SAVE = 4242;
     private static final String A_PREV = "uk.thirai.isai.PREV", A_PP = "uk.thirai.isai.PP", A_NEXT = "uk.thirai.isai.NEXT";
 
     private final Activity ctx;
@@ -52,6 +56,10 @@ public class MediaBridge {
     private int dlIdle = 0;
     private volatile String backendInfo = "";
     private PowerManager.WakeLock wl;
+    private final Object saveLock = new Object();
+    private String saveWant = null, saveId = null;      // saveWant: waiting on the picker; saveId: file is open for writing
+    private OutputStream saveOut = null;
+    private Uri saveUri = null;
 
     MediaBridge(Activity a, WebView w) {
         ctx = a;
@@ -131,6 +139,84 @@ public class MediaBridge {
                 wl.release();
             }
         });
+    }
+
+    /* ---------- Save a downloaded song to the device ("Save as" popup) ---------- */
+
+    /** Opens Android's system "Save as" dialog; the page hears back via window.__isaiSaved(id, ok, msg). */
+    @JavascriptInterface
+    public void saveFile(final String id, final String name, final String mime) {
+        main.post(() -> {
+            synchronized (saveLock) { closeSave(true); saveWant = id; }
+            try {
+                Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT)
+                        .addCategory(Intent.CATEGORY_OPENABLE)
+                        .setType(mime == null || mime.isEmpty() ? "audio/mpeg" : mime)
+                        .putExtra(Intent.EXTRA_TITLE, name);
+                ctx.startActivityForResult(i, REQ_SAVE);
+            } catch (Exception e) {
+                synchronized (saveLock) { saveWant = null; }
+                saveReply(id, false, "Couldn\u2019t open the save dialog");
+            }
+        });
+    }
+
+    /** Forwarded from MainActivity.onActivityResult. Returns true when the result was ours. */
+    boolean onActivityResult(int req, int res, Intent data) {
+        if (req != REQ_SAVE) return false;
+        final String id;
+        synchronized (saveLock) { id = saveWant; saveWant = null; }
+        if (id == null) return true;
+        if (res != Activity.RESULT_OK || data == null || data.getData() == null) { saveReply(id, false, "cancelled"); return true; }
+        try {
+            Uri u = data.getData();
+            OutputStream o = ctx.getContentResolver().openOutputStream(u, "wt");
+            if (o == null) throw new Exception("no stream");
+            synchronized (saveLock) { saveUri = u; saveOut = o; saveId = id; }
+            saveReply(id, true, "");
+        } catch (Exception e) {
+            saveReply(id, false, "Couldn\u2019t create the file");
+        }
+        return true;
+    }
+
+    /** One base64 slice of the file, in order. Returns false if the write failed. */
+    @JavascriptInterface
+    public boolean saveChunk(String id, String b64) {
+        synchronized (saveLock) {
+            if (saveOut == null || id == null || !id.equals(saveId)) return false;
+            try {
+                saveOut.write(android.util.Base64.decode(b64, android.util.Base64.DEFAULT));
+                return true;
+            } catch (Exception e) {
+                closeSave(true);
+                return false;
+            }
+        }
+    }
+
+    /** ok=true finishes the file; ok=false removes the half-written one. */
+    @JavascriptInterface
+    public boolean saveEnd(String id, boolean ok) {
+        synchronized (saveLock) {
+            if (saveOut == null || id == null || !id.equals(saveId)) return false;
+            closeSave(!ok);
+            return true;
+        }
+    }
+
+    private void closeSave(boolean discard) {
+        synchronized (saveLock) {
+            OutputStream o = saveOut; Uri u = saveUri;
+            saveOut = null; saveUri = null; saveId = null;
+            if (o != null) { try { o.flush(); o.close(); } catch (Exception ignored) {} }
+            if (discard && u != null) { try { DocumentsContract.deleteDocument(ctx.getContentResolver(), u); } catch (Exception ignored) {} }
+        }
+    }
+
+    private void saveReply(String id, boolean ok, String msg) {
+        final String code = "window.__isaiSaved&&window.__isaiSaved(" + JSONObject.quote(id) + "," + ok + "," + JSONObject.quote(msg == null ? "" : msg) + ")";
+        main.post(() -> web.evaluateJavascript(code, null));
     }
 
     /** Page reports download progress every 1.5 s; show it as a progress notification. */
@@ -279,6 +365,7 @@ public class MediaBridge {
     }
 
     void release() {
+        closeSave(true);
         try { ctx.unregisterReceiver(receiver); } catch (Exception ignored) {}
         if (wl != null && wl.isHeld()) wl.release();
         nm.cancel(NID);
