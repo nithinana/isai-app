@@ -20,18 +20,23 @@
   if(!ms){ ms={}; try{ Object.defineProperty(navigator,'mediaSession',{value:ms,configurable:true}); }catch(e){} }
   if(typeof window.MediaMetadata==='undefined'){ window.MediaMetadata=function(o){ o=o||{}; this.title=o.title||''; this.artist=o.artist||''; this.album=o.album||''; this.artwork=o.artwork||[]; }; }
   var H={}, md=null, ps='none', st={t:'',a:'',al:'',art:'',dur:0,pos:0,rate:1,state:'none'};
-  var send=function(){ try{ N.update(JSON.stringify(st)); st.artData=''; }catch(e){} };
+  var send=function(){ try{ N.update(JSON.stringify(st)); st.artData=''; }catch(e){} };  /* isai-shim-v2 */
   try{
     Object.defineProperty(ms,'metadata',{configurable:true,get:function(){return md;},set:function(m){
       md=m;
       if(m){ st.t=m.title||''; st.a=m.artist||''; st.al=m.album||''; var aw=m.artwork||[], best=null, bs=-1; aw.forEach(function(x){ var z=parseInt(x.sizes)||0; if(z>=bs){ bs=z; best=x; } }); st.art=best?best.src:'';
-        /* downloaded songs use a page-local blob: cover the app can't fetch -> hand over the image itself, once */
+        /* downloaded songs use a page-local blob: cover the app can't fetch -> hand the image over as base64 (retry once) */
         var u=st.art;
         if(/^data:/.test(u)){ st.artData=u; }
         else if(/^blob:/.test(u)){
-          fetch(u).then(function(r){ return r.blob(); }).then(function(b){
-            var fr=new FileReader(); fr.onload=function(){ if(st.art===u){ st.artData=String(fr.result); send(); } }; fr.readAsDataURL(b);
-          }).catch(function(){});
+          var grab=function(n){
+            fetch(u).then(function(r){ return r.blob(); }).then(function(bl){
+              var fr=new FileReader();
+              fr.onload=function(){ if(st.art===u){ st.artData=String(fr.result); send(); } };
+              fr.readAsDataURL(bl);
+            }).catch(function(e){ if(n>0&&st.art===u) setTimeout(function(){ grab(n-1); },400); else { try{ N.hello('blob cover failed: '+e); }catch(x){} } });
+          };
+          grab(1);
         } }
       else { st.t=''; st.art=''; }
       send(); }});
@@ -1293,6 +1298,32 @@ body.offline .tr.nodl{opacity:.38}
 .ly.rich.on .w.tw.wd,.ly.rich.on .w.tw.wc{opacity:1}
 .lychips button.tlb{margin-left:4px}
 </style>
+<style>
+#instpage{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.66);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+#instpage.on{display:flex}
+#instpage [hidden],#sInstRow[hidden]{display:none!important}
+#instpage .ibox{width:100%;max-width:400px;max-height:92vh;overflow:auto;overscroll-behavior:contain;background:rgba(22,22,28,.96);border:1px solid rgba(255,255,255,.1);border-radius:26px;padding:30px 22px 22px;position:relative;box-shadow:0 30px 80px rgba(0,0,0,.55);animation:mpop .42s var(--ease) both}
+#instpage .ix{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.07);color:var(--mute);font-size:14px;display:grid;place-items:center;transition:background-color .25s var(--ease),color .25s var(--ease)}
+#instpage .ix:hover{background:rgba(255,255,255,.14);color:#fff}
+#instpage .ihead{text-align:center;margin-bottom:22px}
+#instpage .ihead img{width:64px;height:64px;border-radius:15px;margin:0 auto 14px;box-shadow:0 10px 28px rgba(0,0,0,.45)}
+#instpage h2{font-size:21px;font-weight:800;letter-spacing:-.01em;margin:0 0 4px}
+#instpage .ihead p{color:var(--mute);font-size:13px;margin:0}
+#instpage .icard{padding:18px 0 0;margin-top:18px;border-top:1px solid rgba(255,255,255,.08)}
+#instpage .ihead+.icard{padding:0;margin:0;border-top:0}
+#instpage .icard h3{font-size:13px;font-weight:700;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+#instpage .icard .tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:rgba(255,255,255,.12);color:var(--fg);border-radius:999px;padding:2px 8px}
+#instpage .icard p{color:var(--mute);font-size:13px;margin:0 0 14px;line-height:1.5}
+#instpage .icard .btn{width:100%;height:44px;justify-content:center;text-decoration:none;font-size:14px}
+#instpage .icard .btn+.btn{margin-top:8px}
+#instpage ol{margin:0;padding:0;list-style:none;counter-reset:s;color:var(--fg);font-size:13.5px;line-height:1.45}
+#instpage ol li{counter-increment:s;display:flex;gap:12px;align-items:flex-start;margin:0 0 11px}
+#instpage ol li:last-child{margin-bottom:0}
+#instpage ol li::before{content:counter(s);flex:none;width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.09);color:var(--mute);font-size:11px;font-weight:700;display:grid;place-items:center;margin-top:-1px}
+#instpage ol b{font-weight:600}
+#instpage .isub{color:var(--mute);font-size:12px;margin-top:12px;line-height:1.5;text-align:center}
+#instpage .shr{display:inline-block;vertical-align:-3px;width:16px;height:16px}
+</style>
 </head>
 <body>
 <div id="bg"></div>
@@ -1362,6 +1393,25 @@ body.offline .tr.nodl{opacity:.38}
   </div>
 </div>
 
+<div id="instpage" role="dialog" aria-modal="true" aria-label="Install Isai"><div class="ibox">
+  <button class="ix" id="instX" aria-label="Close">✕</button>
+  <div class="ihead"><img src="/apple-touch-icon.png" alt=""><h2>Install Isai</h2><p>Add the app to your phone</p></div>
+  <div class="icard" id="instAndroid">
+    <h3>Android <span class="tag" id="instAndTag" hidden>Your device</span></h3>
+    <p>Background playback with media controls and notifications.</p>
+    <a class="btn" id="instApk" href="https://github.com/nithinana/isai-app/releases/download/v1.0_publicbeta/isai-debug.apk" download>Download APK</a>
+    <button class="btn ghost" id="instPwa" hidden>Or install as web app</button>
+    <div class="isub">Open the file and tap Install. If Android blocks it, allow “Install unknown apps” for your browser.</div>
+  </div>
+  <div class="icard" id="instIos">
+    <h3>iPhone &amp; iPad <span class="tag" id="instIosTag" hidden>Your device</span></h3>
+    <ol>
+      <li><span>Open <b>isai.thirai.uk</b> in <b>Safari</b></span></li>
+      <li><span>Tap <b>Share</b> <svg class="shr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/></svg> then <b>Add to Home Screen</b></span></li>
+      <li><span>Tap <b>Add</b>, then open <b>Isai</b> from your Home Screen</span></li>
+    </ol>
+  </div>
+</div></div>
 <div id="langpick" role="dialog" aria-modal="true" aria-label="Choose music language"><div class="lpbox">
   <h2>What do you listen to?</h2><p>We'll tailor your home page. You can change this anytime in Settings.</p>
   <button data-lang="tamil">தமிழ் · Tamil<small>Kollywood hits, classics, playlists</small></button>
@@ -1533,6 +1583,41 @@ async function api(path){
   let r;
   try { r = await fetch(base() + path, { headers: hd() }); }
   catch { throw new Error('Cannot reach the API at ' + base() + '. Is the server running?'); }
+  if (!r.ok) {
+    let m = r.statusText;
+    try { m = (await r.json()).detail || m } catch {}
+    throw new Error(m);
+  }
+  return r;
+}
+/* Spotify / YouTube Music routes: try the on-device backend first; if it is an older build without the route (404/405), use the public API */
+async function apiFB(path, body){
+  if (!window.__unlocked) throw new Error('Sign in required');
+  if (!navigator.onLine) throw new Error("You're offline");
+  const bases = [base()]; if (bases[0] !== PUBLIC_API) bases.push(PUBLIC_API);
+  let last;
+  for (let i = 0; i < bases.length; i++) {
+    let r;
+    try {
+      r = await fetch(bases[i] + path, body === undefined ? { headers: hd() }
+        : { method: 'POST', headers: { 'Content-Type': 'application/json', ...hd() }, body: JSON.stringify(body) });
+    } catch { last = new Error('Cannot reach the API at ' + bases[i] + '. Is the server running?'); continue; }
+    if (r.ok) return r;
+    let m = r.statusText;
+    try { const d = await r.json(); m = d.detail || m; } catch {}
+    const e = new Error(typeof m === 'string' ? m : 'Request was rejected'); e.status = r.status; last = e;
+    if ((r.status === 404 || r.status === 405) && i < bases.length - 1) continue;
+    throw e;
+  }
+  throw last;
+}
+/* lyrics always come from the public API (never the on-device backend) */
+async function apiPublic(path){
+  if (!window.__unlocked) throw new Error('Sign in required');
+  if (!navigator.onLine) throw new Error("You're offline");
+  let r;
+  try { r = await fetch(PUBLIC_API + path, { headers: hd() }); }
+  catch { throw new Error('Cannot reach the API at ' + PUBLIC_API); }
   if (!r.ok) {
     let m = r.statusText;
     try { m = (await r.json()).detail || m } catch {}
@@ -2246,6 +2331,9 @@ function renderLiked(){
 function renderSettings(){
   const dsz = dls.reduce((n, d) => n + (d.size || 0), 0);
   $('main').innerHTML = `<div class="bkrow">${backBtn()}</div><div class="pg set"><h1 class="t">Settings</h1>
+    <section class="sgrp glass" id="sInstRow" ${isInstalled() ? 'hidden' : ''}><h3>Get the app</h3>
+      <div class="srow"><div><b>Install Isai</b><span>Android app (APK) or add to your iPhone Home Screen</span></div><button class="btn ghost" onclick="window.__openInstall()">Install</button></div>
+    </section>
     <section class="sgrp glass"><h3>Account</h3>
       <div class="srow"><div><b>Signed in</b><span>Sign out to lock Isai on this device</span></div><button class="btn ghost" id="sOut">Sign out</button></div>
     </section>
@@ -2340,17 +2428,6 @@ let a = $('audio'), standby = mkMedia(), pending = false, loading = false;   // 
 standby.preload = 'auto';
 let resume = { id: null, n: 0 }, lastAuto = 0;   // guards against streams that report 'ended' early
 const resetSeek = () => { $('seek').value = $('mseek').value = 0; fillRange($('seek')); fillRange($('mseek')); $('mprog').style.width = '0'; };
-function prefetchNext(){
-  try {
-    if (shuffle || queue.length < 2 || !navigator.onLine) return;
-    const ids = [];
-    for (let k = 1; k <= 2; k++) {
-      const t = queue[(qi + k) % queue.length];
-      if (t && t.id && t.id !== (current && current.id) && !ids.includes(t.id) && !dls.some(d => d.id === t.id)) ids.push(t.id);
-    }
-    if (ids.length) api('/prefetch?ids=' + ids.join(',')).catch(() => {});   /* older backends just 404: ignored */
-  } catch {}
-}
 async function playCurrent(startAt = 0){
   const t = queue[qi]; if (!t) return;
   const my = ++token; current = t; loading = true;
@@ -2399,7 +2476,7 @@ async function playCurrent(startAt = 0){
     $('mpp').classList.remove('loading');
     resetSeek(); $('dur').textContent = $('mdur').textContent = '-' + fmt(n.duration || t.duration);
     if (startAt > 1) { try { a.currentTime = startAt; } catch {} }
-    await a.play(); setPP(); addRecent(t); prefetchNext();
+    await a.play(); setPP(); addRecent(t);
   } catch (e) {
     if (my === token) {
       pending = false; loading = false;
@@ -2827,7 +2904,7 @@ async function fetchCoverBlob(t){
 async function fetchLyricsData(t){
   const isrc = isrcs[t.id] || '';
   const qs = new URLSearchParams(Object.entries({ title: t.title, artist: t.artist, isrc, album: t.album || '', duration: Math.round(t.duration || 0) || '', source: 'auto' }).filter(([, v]) => v));
-  return await (await api(`/lyrics/${t.id}?${qs}`)).json();
+  return await (await apiPublic(`/lyrics/${t.id}?${qs}`)).json();
 }
 /* downloads a song's cover + lyrics and stores them next to the audio; resolves true when everything that exists was saved */
 function saveExtras(t){
@@ -4094,7 +4171,7 @@ function openSpotifyImport(prefill = ''){
     const v = inp.value.trim(); if (!v) return inp.focus();
     err(''); const b = $('spGo'); b.disabled = true; b.textContent = 'Reading…';
     try {
-      const d = await (await api('/spotify/import?url=' + encodeURIComponent(v))).json();
+      const d = await (await apiFB('/spotify/import?url=' + encodeURIComponent(v))).json();
       if (spAlive(run)) spMatchAndSave(run, d.title, d.tracks, { partial: d.maybe_partial, spotifyId: d.id, thumb: d.thumbnail });
     } catch (e) { err(e.message); if (spAlive(run)) { b.disabled = false; b.textContent = 'Import'; } }
   };
@@ -4128,7 +4205,7 @@ async function spMatchAndSave(run, name, tracks, extra){
       if (!spAlive(run)) return;
       const batch = tracks.slice(i, i + 20); let res;
       for (let tries = 0; ; tries++) {
-        try { res = (await apiPost('/spotify/match', { tracks: batch.map(t => ({ title: t.title, artists: t.artists, duration: t.duration })) })).results; break; }
+        try { res = (await (await apiFB('/spotify/match', { tracks: batch.map(t => ({ title: t.title, artists: t.artists, duration: t.duration })) })).json()).results; break; }
         catch (e) { if (tries >= 2 || [400, 401, 403, 501].includes(e.status)) throw e; await sleep(1500 * (tries + 1)); }
       }
       res.forEach((r, j) => {
@@ -4707,7 +4784,7 @@ function lyGet(t, src){
   const qs = new URLSearchParams(Object.entries({ title: t.title, artist: t.artist, isrc, album: t.album || '', duration: Math.round(t.duration || 0) || '', source: src }).filter(([, v]) => v));
   return lyInflight[key] = (async () => {
     try {
-      const d = await (await api(`/lyrics/${t.id}?${qs}`)).json();
+      const d = await (await apiPublic(`/lyrics/${t.id}?${qs}`)).json();
       lyCache[key] = d;
       if (d.found && d.lines && d.lines.length && src === 'auto' && dls.some(x => x.id === t.id) && !(extras[t.id] && extras[t.id].lyrics)) saveExtraLyrics(t, d);
       return d;
@@ -4920,45 +4997,55 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 let deferredPrompt = null;
 const pwaBtn = $('pwaInstall');
 
+const isInstalled = () => !!window.IsaiNative || window.matchMedia('(display-mode: standalone)').matches || window.matchMedia('(display-mode: fullscreen)').matches || window.navigator.standalone === true || store.get('installed', '') === '1';
+const isIOS = () => (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) && !window.MSStream;
+const isAndroid = () => /Android/i.test(navigator.userAgent);
+const instBox = $('instpage');
+
 function updateInstallBtn() {
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-  if (pwaBtn) {
-    if (isStandalone) pwaBtn.style.display = 'none';
-    else pwaBtn.style.display = '';
-  }
+  const done = isInstalled();
+  if (pwaBtn) pwaBtn.style.display = done ? 'none' : '';
+  const row = $('sInstRow'); if (row) row.hidden = done;
+  if (done) closeInstall();
+}
+function openInstall() {
+  if (isInstalled()) return;
+  const ios = isIOS(), and = isAndroid();
+  $('instAndTag').hidden = !and; $('instIosTag').hidden = !ios;
+  $('instPwa').hidden = !deferredPrompt;
+  /* the visitor's own platform goes first */
+  const box = instBox.querySelector('.ibox');
+  box.insertBefore(ios ? $('instIos') : $('instAndroid'), ios ? $('instAndroid') : $('instIos'));
+  $('instAndroid').classList.toggle('me', and); $('instIos').classList.toggle('me', ios);
+  instBox.classList.add('on');
+}
+function closeInstall() { if (instBox) instBox.classList.remove('on'); }
+if (instBox) {
+  $('instX').onclick = closeInstall;
+  instBox.addEventListener('click', e => { if (e.target === instBox) closeInstall(); });
+  $('instPwa').onclick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const c = await deferredPrompt.userChoice;
+    if (c && c.outcome === 'accepted') { deferredPrompt = null; closeInstall(); }
+  };
 }
 
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
   deferredPrompt = e;
-  if (pwaBtn) pwaBtn.style.display = '';
+  updateInstallBtn();
 });
 
 window.addEventListener('appinstalled', () => {
   deferredPrompt = null;
-  if (pwaBtn) pwaBtn.style.display = 'none';
+  store.set('installed', '1');
+  updateInstallBtn();
   toast('Isai installed successfully!');
 });
 
-if (pwaBtn) {
-  pwaBtn.onclick = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const choice = await deferredPrompt.userChoice;
-      if (choice && choice.outcome === 'accepted') {
-        deferredPrompt = null;
-        pwaBtn.style.display = 'none';
-      }
-    } else {
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-      if (isIOS) {
-        toast('To install: tap Share and select "Add to Home Screen"');
-      } else {
-        toast('To install: click the Install icon in your browser address bar or menu');
-      }
-    }
-  };
-}
+if (pwaBtn) pwaBtn.onclick = openInstall;
+window.__openInstall = openInstall;
 updateInstallBtn();
 
 /* ---------- login gate (logic from Thirai index) ---------- */
