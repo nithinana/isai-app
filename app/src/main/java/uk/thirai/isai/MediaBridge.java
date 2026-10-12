@@ -47,6 +47,7 @@ public class MediaBridge {
     private float rate = 1f;
     private long posWall = 0;
     private Bitmap art;
+    private String lastArtData = "";
     private boolean dlShown = false;
     private int dlIdle = 0;
     private volatile String backendInfo = "";
@@ -109,10 +110,10 @@ public class MediaBridge {
         try {
             JSONObject o = new JSONObject(json);
             final String t = o.optString("t"), ar = o.optString("a"), al = o.optString("al"),
-                    au = o.optString("art"), s = o.optString("state", "none");
+                    au = o.optString("art"), ad = o.optString("artData"), s = o.optString("state", "none");
             final double d = o.optDouble("dur", 0), p = o.optDouble("pos", 0);
             final float r = (float) o.optDouble("rate", 1);
-            main.post(() -> apply(t, ar, al, au, s, d, p, r));
+            main.post(() -> apply(t, ar, al, au, ad, s, d, p, r));
         } catch (Exception ignored) {}
     }
 
@@ -169,7 +170,7 @@ public class MediaBridge {
         return b.setSmallIcon(R.drawable.ic_stat_isai).setContentIntent(open).setOnlyAlertOnce(true).setShowWhen(false);
     }
 
-    private void apply(String t, String ar, String al, String au, String s, double d, double p, float r) {
+    private void apply(String t, String ar, String al, String au, String ad, String s, double d, double p, float r) {
         boolean changed = !t.equals(title) || !ar.equals(artist) || !al.equals(album) || !s.equals(state)
                 || Math.abs(d - dur) > 0.5 || r != rate;
         long now = System.currentTimeMillis();
@@ -177,8 +178,13 @@ public class MediaBridge {
         if (Math.abs(p - expected) > 1.5) changed = true;   // seek / skip
         title = t; artist = ar; album = al; state = s; dur = d; pos = p; rate = r; posWall = now;
         if (!au.equals(artUrl)) {
-            artUrl = au; art = null; changed = true;
+            artUrl = au; art = null; changed = true; lastArtData = "";
             fetchArt(au);
+        }
+        if (!ad.isEmpty() && !ad.equals(lastArtData)) {          // cover sent as image data (downloaded songs)
+            lastArtData = ad;
+            Bitmap b = decodeDataUrl(ad);
+            if (b != null) { art = b; changed = true; }
         }
         if (changed) publish();
     }
@@ -203,8 +209,22 @@ public class MediaBridge {
         } finally { c.disconnect(); }
     }
 
+    private static Bitmap decodeDataUrl(String d) {
+        try {
+            byte[] raw = android.util.Base64.decode(d.substring(d.indexOf(',') + 1), android.util.Base64.DEFAULT);
+            Bitmap b = BitmapFactory.decodeByteArray(raw, 0, raw.length);
+            if (b != null && Math.max(b.getWidth(), b.getHeight()) > 900) {
+                float k = 900f / Math.max(b.getWidth(), b.getHeight());
+                b = Bitmap.createScaledBitmap(b, Math.round(b.getWidth() * k), Math.round(b.getHeight() * k), true);
+            }
+            return b;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private void fetchArt(final String url) {
-        if (url.isEmpty()) return;
+        if (url.isEmpty() || url.startsWith("blob:") || url.startsWith("data:")) return;
         new Thread(() -> {
             Bitmap b = null;
             String hi = hiRes(url);

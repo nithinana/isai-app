@@ -20,11 +20,19 @@
   if(!ms){ ms={}; try{ Object.defineProperty(navigator,'mediaSession',{value:ms,configurable:true}); }catch(e){} }
   if(typeof window.MediaMetadata==='undefined'){ window.MediaMetadata=function(o){ o=o||{}; this.title=o.title||''; this.artist=o.artist||''; this.album=o.album||''; this.artwork=o.artwork||[]; }; }
   var H={}, md=null, ps='none', st={t:'',a:'',al:'',art:'',dur:0,pos:0,rate:1,state:'none'};
-  var send=function(){ try{ N.update(JSON.stringify(st)); }catch(e){} };
+  var send=function(){ try{ N.update(JSON.stringify(st)); st.artData=''; }catch(e){} };
   try{
     Object.defineProperty(ms,'metadata',{configurable:true,get:function(){return md;},set:function(m){
       md=m;
-      if(m){ st.t=m.title||''; st.a=m.artist||''; st.al=m.album||''; var aw=m.artwork||[], best=null, bs=-1; aw.forEach(function(x){ var z=parseInt(x.sizes)||0; if(z>=bs){ bs=z; best=x; } }); st.art=best?best.src:''; }
+      if(m){ st.t=m.title||''; st.a=m.artist||''; st.al=m.album||''; var aw=m.artwork||[], best=null, bs=-1; aw.forEach(function(x){ var z=parseInt(x.sizes)||0; if(z>=bs){ bs=z; best=x; } }); st.art=best?best.src:'';
+        /* downloaded songs use a page-local blob: cover the app can't fetch -> hand over the image itself, once */
+        var u=st.art;
+        if(/^data:/.test(u)){ st.artData=u; }
+        else if(/^blob:/.test(u)){
+          fetch(u).then(function(r){ return r.blob(); }).then(function(b){
+            var fr=new FileReader(); fr.onload=function(){ if(st.art===u){ st.artData=String(fr.result); send(); } }; fr.readAsDataURL(b);
+          }).catch(function(){});
+        } }
       else { st.t=''; st.art=''; }
       send(); }});
     Object.defineProperty(ms,'playbackState',{configurable:true,get:function(){return ps;},set:function(v){ ps=v; st.state=v; send(); }});
@@ -1532,20 +1540,6 @@ async function api(path){
   }
   return r;
 }
-/* lyrics always come from the public API (never the on-device backend) */
-async function apiPublic(path){
-  if (!window.__unlocked) throw new Error('Sign in required');
-  if (!navigator.onLine) throw new Error("You're offline");
-  let r;
-  try { r = await fetch(PUBLIC_API + path, { headers: hd() }); }
-  catch { throw new Error('Cannot reach the API at ' + PUBLIC_API); }
-  if (!r.ok) {
-    let m = r.statusText;
-    try { m = (await r.json()).detail || m } catch {}
-    throw new Error(m);
-  }
-  return r;
-}
 const GOOG = /googleusercontent\.com|ggpht\.com/;
 const extras = {};                       // trackId -> { url, obj, cover, lyrics, v }  (offline cover + lyrics for downloads)
 const cov = (t, s = 320) => {
@@ -2822,7 +2816,7 @@ async function fetchCoverBlob(t){
 async function fetchLyricsData(t){
   const isrc = isrcs[t.id] || '';
   const qs = new URLSearchParams(Object.entries({ title: t.title, artist: t.artist, isrc, album: t.album || '', duration: Math.round(t.duration || 0) || '', source: 'auto' }).filter(([, v]) => v));
-  return await (await apiPublic(`/lyrics/${t.id}?${qs}`)).json();
+  return await (await api(`/lyrics/${t.id}?${qs}`)).json();
 }
 /* downloads a song's cover + lyrics and stores them next to the audio; resolves true when everything that exists was saved */
 function saveExtras(t){
@@ -4702,7 +4696,7 @@ function lyGet(t, src){
   const qs = new URLSearchParams(Object.entries({ title: t.title, artist: t.artist, isrc, album: t.album || '', duration: Math.round(t.duration || 0) || '', source: src }).filter(([, v]) => v));
   return lyInflight[key] = (async () => {
     try {
-      const d = await (await apiPublic(`/lyrics/${t.id}?${qs}`)).json();
+      const d = await (await api(`/lyrics/${t.id}?${qs}`)).json();
       lyCache[key] = d;
       if (d.found && d.lines && d.lines.length && src === 'auto' && dls.some(x => x.id === t.id) && !(extras[t.id] && extras[t.id].lyrics)) saveExtraLyrics(t, d);
       return d;
