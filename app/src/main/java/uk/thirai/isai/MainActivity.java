@@ -126,10 +126,10 @@ public class MainActivity extends Activity {
 
         if (state != null) { web.restoreState(state); return; }
 
-        // Wait (max 25 s) for the on-device backend, tell the page about it, then load the site.
+        // Wait (max 15 s) for the on-device backend, tell the page about it, then load the site.
         // If it never comes up the page simply uses the public API.
         new Thread(() -> {
-            long end = System.currentTimeMillis() + 25_000;
+            long end = System.currentTimeMillis() + 15_000;
             boolean up = false;
             while (System.currentTimeMillis() < end && ServerService.lastError == null) {
                 try (Socket sock = new Socket()) {

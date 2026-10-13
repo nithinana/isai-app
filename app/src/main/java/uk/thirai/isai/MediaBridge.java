@@ -277,18 +277,18 @@ public class MediaBridge {
 
     /** Ask the cover endpoint / Google thumbnails for a bigger image than the page's 256 px pick. */
     private static String hiRes(String url) {
-        String u = url.replaceAll("([?&]s=)\\d+", "$1800");
-        u = u.replaceAll("=w\\d+-h\\d+", "=w800-h800");
+        String u = url.replaceAll("([?&]s=)\\d+", "$1640");
+        u = u.replaceAll("=w\\d+-h\\d+", "=w640-h640");
         return u;
     }
 
     private static Bitmap download(String url) throws Exception {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-        c.setConnectTimeout(8000); c.setReadTimeout(10000);
+        c.setConnectTimeout(6000); c.setReadTimeout(12000);
         try {
             Bitmap b = BitmapFactory.decodeStream(c.getInputStream());
-            if (b != null && Math.max(b.getWidth(), b.getHeight()) > 900) {
-                float k = 900f / Math.max(b.getWidth(), b.getHeight());
+            if (b != null && Math.max(b.getWidth(), b.getHeight()) > 640) {
+                float k = 640f / Math.max(b.getWidth(), b.getHeight());
                 b = Bitmap.createScaledBitmap(b, Math.round(b.getWidth() * k), Math.round(b.getHeight() * k), true);
             }
             return b;
@@ -299,8 +299,8 @@ public class MediaBridge {
         try {
             byte[] raw = android.util.Base64.decode(d.substring(d.indexOf(',') + 1), android.util.Base64.DEFAULT);
             Bitmap b = BitmapFactory.decodeByteArray(raw, 0, raw.length);
-            if (b != null && Math.max(b.getWidth(), b.getHeight()) > 900) {
-                float k = 900f / Math.max(b.getWidth(), b.getHeight());
+            if (b != null && Math.max(b.getWidth(), b.getHeight()) > 640) {
+                float k = 640f / Math.max(b.getWidth(), b.getHeight());
                 b = Bitmap.createScaledBitmap(b, Math.round(b.getWidth() * k), Math.round(b.getHeight() * k), true);
             }
             return b;
@@ -309,16 +309,43 @@ public class MediaBridge {
         }
     }
 
+    /** Small LRU of decoded covers + one worker thread, so skipping songs on a slow link never piles up downloads. */
+    private final android.util.LruCache<String, Bitmap> artCache = new android.util.LruCache<>(5);
+    private final java.util.concurrent.ExecutorService artExec = java.util.concurrent.Executors.newSingleThreadExecutor();
+    private volatile int artGen = 0;
+
+    /** true when the connection is too slow to be worth fetching the bigger cover as well. */
+    private boolean slowLink() {
+        try {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
+            android.net.Network n = cm.getActiveNetwork();
+            android.net.NetworkCapabilities c = n == null ? null : cm.getNetworkCapabilities(n);
+            return c != null && c.getLinkDownstreamBandwidthKbps() > 0 && c.getLinkDownstreamBandwidthKbps() < 1500;
+        } catch (Exception e) { return false; }
+    }
+
+    private void showArt(final String url, final Bitmap bmp) {
+        main.post(() -> { if (url.equals(artUrl)) { art = bmp; publish(); } });
+    }
+
     private void fetchArt(final String url) {
         if (url.isEmpty() || url.startsWith("blob:") || url.startsWith("data:")) return;
-        new Thread(() -> {
-            Bitmap b = null;
-            String hi = hiRes(url);
-            try { b = download(hi); } catch (Exception ignored) {}
-            if (b == null && !hi.equals(url)) { try { b = download(url); } catch (Exception ignored) {} }
-            final Bitmap bmp = b;
-            if (bmp != null) main.post(() -> { if (url.equals(artUrl)) { art = bmp; publish(); } });
-        }, "isai-art").start();
+        final int gen = ++artGen;
+        final String hi = hiRes(url);
+        Bitmap hit = artCache.get(hi);
+        if (hit == null) hit = artCache.get(url);
+        if (hit != null) { art = hit; return; }
+        artExec.execute(() -> {
+            if (gen != artGen) return;                         // the song already changed: skip this one
+            Bitmap small = null;
+            try { small = download(url); } catch (Exception ignored) {}          // the page's own size first: shows up fast
+            if (small != null) { artCache.put(url, small); if (gen == artGen) showArt(url, small); }
+            if (gen != artGen || hi.equals(url) || (small != null && slowLink())) return;
+            try {
+                Bitmap big = download(hi);                                         // then upgrade to the sharper one
+                if (big != null) { artCache.put(hi, big); if (gen == artGen) showArt(url, big); }
+            } catch (Exception ignored) {}
+        });
     }
 
     private Notification.Action action(int icon, String label, String act) {
@@ -365,6 +392,7 @@ public class MediaBridge {
     }
 
     void release() {
+        try { artExec.shutdownNow(); } catch (Exception ignored) {}
         closeSave(true);
         try { ctx.unregisterReceiver(receiver); } catch (Exception ignored) {}
         if (wl != null && wl.isHeld()) wl.release();

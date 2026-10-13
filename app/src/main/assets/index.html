@@ -60,10 +60,11 @@
       var frac=0, c=0; act.forEach(function(a){ if(a.total>0){ frac+=Math.min(1,a.loaded/a.total); c++; } });
       var pct=-1; if(T>0) pct=Math.round(Math.min(100,(D+frac)/T*100)); else if(c) pct=Math.round(frac/c*100);
       var busy=n>0||jobs.some(function(j){ return !j.stop && (j.todo||[]).length>0; });
+      var sig=n+'|'+pct+'|'+busy+'|'+label+'|'+D+'/'+T; if(!busy&&sig===window.__dlSig) return; window.__dlSig=sig;
       N.downloads(n);
       if(N.downloadStatus) N.downloadStatus(JSON.stringify({busy:busy,n:n,title:n&&act[0].t?act[0].t.title:'',pct:pct,done:D,total:T,label:label}));
     }catch(e){}
-  }, 1500);
+  }, 2500);
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -766,7 +767,7 @@ input[type=range]::-webkit-slider-thumb{transition:opacity .25s var(--ease)}
   #modal{place-items:end center;padding:0}
   .msheet{width:100%;border-radius:22px 22px 0 0;padding-bottom:calc(20px + var(--sab))}
   .libact .btn{flex:1;justify-content:center}
-  .libact .impbtn{flex:1}.impbtn .impl{flex:1;padding-left:12px;padding-right:8px}
+  .libact #impAny{flex:1}
 }
 
 /* ---- lyrics ---- */
@@ -974,6 +975,57 @@ body.offline .tr.nodl{opacity:.38}
   #npPlus{display:none}
   #mDl{display:none}
 }
+/* ---- motion polish ---- */
+.sbody.swap .pstat{animation:stSwap .55s var(--ease) both}
+.sbody.tick .pstat{animation:none}
+@keyframes stSwap{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+.pstat>img{transition:opacity .4s var(--ease)}
+.pg>*{animation:pgIn .5s var(--ease) both}
+.pg>*:nth-child(2){animation-delay:.04s}.pg>*:nth-child(3){animation-delay:.08s}.pg>*:nth-child(4){animation-delay:.12s}.pg>*:nth-child(n+5){animation-delay:.16s}
+@keyframes pgIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.card,.mood,.plr,.tr,.pstat,.frow,.srow .btn,.btn,.pill,.rb,.iconb{transition:transform .3s var(--ease),background-color .25s var(--ease),border-color .25s var(--ease),box-shadow .3s var(--ease),opacity .25s var(--ease),color .25s var(--ease)}
+.btn:active,.pill:active,.rb:active,.iconb:active,.plr:active{transform:scale(.96)}
+.card:hover{transform:translateY(-3px)}
+.card:active{transform:scale(.98)}
+.sw,.spick{will-change:transform}
+html{scroll-behavior:smooth}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+}
+/* ---- on-screen dialogs (confirm + picker) ---- */
+#dlg{position:fixed;inset:0;z-index:90;display:grid;place-items:center;padding:20px;background:rgba(0,0,0,.6);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);animation:mfade .2s var(--ease) both}
+#dlg[hidden]{display:none}
+#dlg.closing{animation:mfadeout .18s var(--ease-io) both;pointer-events:none}
+.dsheet{width:min(380px,100%);max-height:80vh;overflow:auto;border-radius:24px;padding:22px 20px 18px;background:rgba(26,26,32,.96);text-align:center;animation:mpop .32s var(--ease) both}
+#dlg.closing .dsheet{animation:mpopout .18s var(--ease-io) both}
+.dsheet h3{margin:0 0 8px;font-size:19px;font-weight:800}
+.dsheet p{margin:0 0 18px;color:var(--mute);font-size:14px;line-height:1.5;overflow-wrap:anywhere}
+.dsheet .dbtns{display:flex;gap:10px}
+.dsheet .dbtns .btn{flex:1;justify-content:center;padding:12px 16px;font-size:15px}
+.dsheet.pick{text-align:left;padding:18px 12px 12px}
+.dsheet.pick h3{padding:0 8px 8px;text-align:left}
+.dsheet.pick .dopt{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:13px 12px;border-radius:12px;font-size:15px;font-weight:600;text-align:left;transition:background-color .2s}
+.dsheet.pick .dopt:hover{background:rgba(255,255,255,.08)}
+.dsheet.pick .dopt.on{background:rgba(255,255,255,.12)}
+.dsheet.pick .dopt svg{flex:none}
+@media(max-width:720px){
+  #dlg{place-items:end center;padding:12px 12px calc(12px + var(--sab))}
+  .dsheet{animation:sheetup .3s var(--ease) both}
+  #dlg.closing .dsheet{animation:sheetdown .22s var(--ease-io) both}
+}
+/* settings: picker button + switch */
+.srow .spick{flex:none;width:min(220px,50%);height:40px;padding:0 14px;border-radius:12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:600;transition:border-color .25s var(--ease),background-color .25s var(--ease)}
+.srow .spick:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25)}
+.srow .spick svg{opacity:.7;flex:none;transform:rotate(90deg)}
+.sw{position:relative;flex:none;width:50px;height:30px;border-radius:999px;background:rgba(255,255,255,.16);transition:background-color .25s var(--ease)}
+.sw::after{content:'';position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.35);transition:transform .25s var(--ease)}
+.sw[aria-checked=true]{background:#30d158}
+.sw[aria-checked=true]::after{transform:translateX(20px)}
+@media(max-width:720px){
+  .srow .spick{width:100%}
+  .srow.tgl{flex-wrap:nowrap}
+  .srow.tgl>div{flex:1 1 auto}
+}
 </style>
 <style>
 /* ---- activity + artist-profile update ---- */
@@ -1094,8 +1146,9 @@ body.offline .tr.nodl{opacity:.38}
 .pmore svg{transition:transform .3s cubic-bezier(.32,.72,0,1)}.pmore.open svg{transform:rotate(180deg)}
 .alib{display:flex;justify-content:center;margin-top:14px}.alib .btn{gap:8px}
 .aauto{gap:10px!important}
-.sw{position:relative;display:inline-block;width:34px;height:20px;border-radius:999px;background:rgba(255,255,255,.22);transition:background-color .3s var(--ease);flex:none;margin-left:2px}
-.sw i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.4);transition:transform .35s var(--ease)}
+.aauto .sw{position:relative;display:inline-block;width:34px;height:20px;border-radius:999px;background:rgba(255,255,255,.22);transition:background-color .3s var(--ease);flex:none;margin-left:2px}
+.aauto .sw::after{display:none}
+.aauto .sw i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.4);transition:transform .35s var(--ease)}
 .aauto.on .sw{background:#4cd58a}.aauto.on .sw i{transform:translateX(14px)}
 .aauto.on{border-color:rgba(76,213,138,.45)}
 .psc{display:flex;gap:12px;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;padding-bottom:4px}
@@ -1223,7 +1276,7 @@ body.offline .tr.nodl{opacity:.38}
 .shacts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .merr{color:#ff7a90!important;min-height:1em}
 </style>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>if(!window.IsaiNative){var g=document.createElement('script');g.src='https://accounts.google.com/gsi/client';g.async=true;document.head.appendChild(g);}</script>
 
 <style id="lyfull-css">
 /* ======== lyrics mode (phone): the real player pieces morph into the lyrics layout ======== */
@@ -1324,6 +1377,88 @@ body.offline .tr.nodl{opacity:.38}
 #instpage .isub{color:var(--mute);font-size:12px;margin-top:12px;line-height:1.5;text-align:center}
 #instpage .shr{display:inline-block;vertical-align:-3px;width:16px;height:16px}
 </style>
+<style>
+/* offline mode / incognito / device storage */
+.offpill,.incpill{cursor:pointer}
+.incpill{display:none;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:rgba(167,139,250,.16);border:1px solid rgba(167,139,250,.5);color:#e0d6ff;font-size:13px;font-weight:700;white-space:nowrap}
+.incpill i{width:8px;height:8px;border-radius:50%;background:#a78bfa}
+body.incog .incpill{display:inline-flex}
+@media(max-width:720px){.top{gap:8px}.offpill,.incpill{padding:5px 10px;font-size:12px}}
+.stor{border-radius:18px;padding:14px 16px;margin:10px 0 12px}
+.stt{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.stt b{font-size:15px;font-weight:700}
+.stt span{color:var(--mute);font-size:13px;font-variant-numeric:tabular-nums}
+.stt span.low{color:#ffb454;font-weight:700}
+.stbar{display:flex;height:10px;border-radius:999px;background:rgba(255,255,255,.14);overflow:hidden;margin:12px 0 10px}
+.stbar i{display:block;height:100%;min-width:0;transition:width .5s var(--ease)}
+.stbar i+i{margin-left:1px}
+.stl i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:baseline}
+.stbar .sd,.stl .sd{background:#fff}
+.stbar .so,.stl .so{background:#8b8b9c}
+.stl .sf{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3)}
+.stl{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12.5px;color:var(--mute)}
+.stl b{color:var(--fg);font-weight:600;margin-left:3px}
+.stw{margin:10px 0 0;font-size:13px;color:#ffb454}
+.dlmode{display:flex;align-items:center;justify-content:space-between;gap:16px;border-radius:18px;padding:12px 16px;margin:0 0 14px}
+.dlmode b{display:block;font-size:15px;font-weight:600}
+.dlmode span{display:block;color:var(--mute);font-size:13px;margin-top:2px}
+
+/* ---- queue, song menu, swipe-to-queue ---- */
+.lrow{position:relative;touch-action:pan-y}
+.lrow.swiping{background:rgba(255,255,255,.07)}
+.lrow.swiping>*:not(.swq){transform:translateX(var(--sw,0));transition:none}
+.lrow.swiback>*:not(.swq){transition:transform .28s var(--ease)}
+.swq{position:absolute;left:12px;top:50%;margin-top:-18px;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.16);color:#fff;opacity:var(--sp,0);transform:scale(calc(.55 + var(--sp,0)*.45));pointer-events:none;transition:background-color .15s,color .15s}
+.lrow.armed .swq,.swq.done{background:#fff;color:#000}
+.swq.done{opacity:1;transform:scale(1)}
+.qh{padding:14px 10px 6px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.qr.qd{box-shadow:inset 3px 0 0 rgba(255,255,255,.55)}
+.smh{display:flex;align-items:center;gap:12px;padding:2px 4px 14px;margin-bottom:6px;border-bottom:1px solid var(--line)}
+.smh img{width:52px;height:52px;border-radius:8px;object-fit:cover;background:var(--panel);flex:none}
+.plr.danger .plc,.plr.danger b{color:#ff7a90}
+.qa button[data-a="more"]{color:var(--mute)}
+/* playlist sort bar */
+.plsort{display:flex;justify-content:flex-end;margin:0 0 6px;padding:0 0 8px;border-bottom:1px solid var(--line)}
+.plsort .sortb{display:inline-flex;align-items:center;gap:8px;padding:7px 10px;border-radius:9px;color:var(--mute);font-size:13px;font-weight:600}
+.plsort .sortb span{color:#fff}
+.plsort .sortb svg:last-child{transform:rotate(90deg);opacity:.55}
+.plsort .sortb:hover,.plsort .sortb:active{background:rgba(255,255,255,.09);color:#fff}
+.plr.sel{background:rgba(255,255,255,.08)}
+.plr .ck{margin-left:auto;display:grid;place-items:center;padding-right:6px}
+
+/* ---- streaming notice ---- */
+#notice{position:fixed;inset:0;z-index:9998;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.72);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+#notice.on{display:flex;animation:mfade .35s var(--ease) both}
+#notice .nbox{width:100%;max-width:420px;max-height:92vh;overflow:auto;overscroll-behavior:contain;border-radius:28px;padding:30px 24px 22px;background:rgba(24,24,30,.96);border:1px solid rgba(255,255,255,.1);box-shadow:0 30px 80px rgba(0,0,0,.55);animation:mpop .45s var(--ease) both}
+#notice .nic{width:56px;height:56px;border-radius:18px;margin:0 auto 18px;display:grid;place-items:center;background:rgba(255,180,84,.14);border:1px solid rgba(255,180,84,.35);color:#ffc97a}
+#notice h2{margin:0 0 8px;text-align:center;font-size:22px;font-weight:800;letter-spacing:-.01em}
+#notice .nlead{margin:0 0 22px;text-align:center;color:var(--mute);font-size:14px;line-height:1.55}
+#notice .nsteps{list-style:none;margin:0 0 22px;padding:0;display:flex;flex-direction:column;gap:10px;counter-reset:n}
+#notice .nsteps li{counter-increment:n;display:flex;gap:14px;align-items:flex-start;padding:14px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
+#notice .nsteps li::before{content:counter(n);flex:none;width:26px;height:26px;border-radius:50%;background:#fff;color:#000;font-size:13px;font-weight:800;display:grid;place-items:center}
+#notice .nsteps b{display:block;font-size:14.5px;font-weight:700;margin-bottom:2px}
+#notice .nsteps span{display:block;color:var(--mute);font-size:13px;line-height:1.5}
+#notice .btn{width:100%;height:48px;justify-content:center;font-size:15px}
+#notice .nfoot{margin:12px 0 0;text-align:center;color:var(--mute);font-size:12px}
+
+/* ---- app: no Google sign-in ---- */
+.isai-app #lkG,.isai-app #lkRegG,.isai-app #lkGErr,.isai-app #lkRegGErr,.isai-app #lock .or{display:none!important}
+/* ---- Lite mode: fewer effects, less battery + GPU (auto on slow / low-power devices) ---- */
+html.lite{transition:none!important;scroll-behavior:auto!important}
+html.lite *,html.lite *::before,html.lite *::after{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+html.lite .glass,html.lite .menu,html.lite #toast{background:rgba(30,30,38,.96)}
+html.lite #player.glass{background:rgba(24,24,30,.98)}
+html.lite #nav{background:rgba(14,14,20,.98)}
+html.lite .top::before{background:#0d0d11}
+html.lite #modal,html.lite #dlg,html.lite #notice,html.lite #instpage,html.lite #langpick{background:rgba(0,0,0,.82)}
+html.lite #main.enter>*,html.lite .pg>*,html.lite .prof .psec,html.lite .psc .card,html.lite .pplc .card,html.lite .pfull .grid .card,html.lite .pexp .pextra,html.lite #npv.open,html.lite #npv.open>.npl,html.lite #npv.open>.npr{animation:none!important}
+html.lite .cv img{transition:none!important;will-change:auto}
+html.lite .card:hover{transform:none}
+html.lite .card:hover .cv img{transform:none}
+html.lite .ly,html.lite .ly.past{filter:none!important;transition:opacity .25s linear!important}
+html.lite .sk .cv,html.lite .skl,html.lite .sk-av,html.lite .sk-ln{animation:none!important;opacity:.5}
+html.lite .eq i{animation:none;height:8px}
+</style>
 </head>
 <body>
 <div id="bg"></div>
@@ -1399,7 +1534,7 @@ body.offline .tr.nodl{opacity:.38}
   <div class="icard" id="instAndroid">
     <h3>Android <span class="tag" id="instAndTag" hidden>Your device</span></h3>
     <p>Background playback with media controls and notifications.</p>
-    <a class="btn" id="instApk" href="https://github.com/nithinana/isai-app/releases/download/v1.0_publicbeta/isai-debug.apk" download>Download APK</a>
+    <a class="btn" id="instApk" href="https://github.com/nithinana/isai-app/releases/download/v1.02_debug/Isai-debug.apk" download>Download APK</a>
     <button class="btn ghost" id="instPwa" hidden>Or install as web app</button>
     <div class="isub">Open the file and tap Install. If Android blocks it, allow “Install unknown apps” for your browser.</div>
   </div>
@@ -1411,6 +1546,18 @@ body.offline .tr.nodl{opacity:.38}
       <li><span>Tap <b>Add</b>, then open <b>Isai</b> from your Home Screen</span></li>
     </ol>
   </div>
+</div></div>
+<div id="notice" role="dialog" aria-modal="true" aria-labelledby="ntTitle"><div class="nbox">
+  <div class="nic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.9 4.9l2.8 2.8"/><path d="M16.3 16.3l2.8 2.8"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.9 19.1l2.8-2.8"/><path d="M16.3 7.7l2.8-2.8"/></svg></div>
+  <h2 id="ntTitle">Streaming can be slow</h2>
+  <p class="nlead">The main server is shared by everyone, so playing songs directly can buffer or lag. For the best experience, download your music and play it offline.</p>
+  <ol class="nsteps">
+    <li><div><b>Import your playlists</b><span>Library → Import. Bring them in from Spotify or YouTube Music with a link.</span></div></li>
+    <li><div><b>Download them</b><span>Open a playlist and tap the download button, or choose “Download all”.</span></div></li>
+    <li><div><b>Play offline</b><span>Downloaded songs start instantly, with album art and lyrics, even with no signal.</span></div></li>
+  </ol>
+  <button class="btn" id="ntOk" type="button">I understand</button>
+  <p class="nfoot">You can read this again anytime in Settings.</p>
 </div></div>
 <div id="langpick" role="dialog" aria-modal="true" aria-label="Choose music language"><div class="lpbox">
   <h2>What do you listen to?</h2><p>We'll tailor your home page. You can change this anytime in Settings.</p>
@@ -1429,7 +1576,8 @@ body.offline .tr.nodl{opacity:.38}
   <button data-view="profile" id="navProfile" title="Profile" aria-label="Profile"><span data-ic="user"></span></button>
 </aside>
 <header class="top">
-  <span id="offpill" class="offpill" role="status" aria-live="polite"><i></i>You're offline</span>
+  <span id="offpill" class="offpill" role="status" aria-live="polite" data-view="settings" title="Offline settings"><i></i><span id="offtxt">You're offline</span></span>
+  <span id="incpill" class="incpill" role="status" aria-live="polite" data-view="settings" title="Incognito settings"><i></i>Incognito</span>
   <a class="logo" id="logo" title="Home"><img src="https://thirai.uk/static/thiraiwhite.png" alt="Thirai"></a>
   <div class="sbx" id="sbx"><input id="hq" placeholder="Search songs, albums, artists, playlists" autocomplete="off" enterkeyhint="search"><button class="sbi" id="sbtn" data-ic="search" aria-label="Search"></button></div>
 </header>
@@ -1482,6 +1630,7 @@ body.offline .tr.nodl{opacity:.38}
 <div id="bulk" class="glass" hidden><div><b id="bulkT"></b><div class="dlbar"><i id="bulkI"></i></div></div><button class="pill" id="bulkX">Cancel</button></div>
 <div id="modal" hidden><div class="msheet glass"></div></div>
 <video id="audio" playsinline webkit-playsinline preload="auto" style="display:none" aria-hidden="true"></video>
+<div id="dlg" hidden><div class="dsheet glass"></div></div>
 <div id="toast"></div>
 
 <script>
@@ -1496,7 +1645,59 @@ const store = {
 };
 const jget = (k, d) => { try { return JSON.parse(store.get(k, '')) ?? d } catch { return d } };
 
+/* ---------- device modes: Offline mode + Incognito ---------- */
+const MODE = {
+  off: store.get('offmode', '0') === '1',                                                   // Offline mode: kept until you turn it off
+  inc: (() => { try { return sessionStorage.getItem('incog') === '1'; } catch { return false; } })()   // Incognito: ends when Isai is closed
+};
+const isOnline = () => navigator.onLine && !MODE.off;
+/* in Offline mode no request leaves the device (blob:/data: downloads still work) */
+(() => {
+  const realFetch = window.fetch.bind(window);
+  window.fetch = function(input, init){
+    if (MODE.off && window.__unlocked) {
+      let u = ''; try { u = typeof input === 'string' ? input : ((input && input.url) || String(input)); } catch {}
+      if (/^https?:/i.test(u)) return Promise.reject(new TypeError('Offline mode is on'));
+    }
+    return realFetch(input, init);
+  };
+})();
+function syncModeUI(){
+  document.body.classList.toggle('incog', MODE.inc);
+  const op = $('offpill'); if (op) { const t = $('offtxt'); if (t) t.textContent = MODE.off ? 'Offline mode' : "You're offline"; }
+  [['sOff', MODE.off], ['dlOff', MODE.off], ['sInc', MODE.inc]].forEach(([id, v]) => { const e = $(id); if (e) e.setAttribute('aria-checked', v ? 'true' : 'false'); });
+}
+function setOffMode(on){
+  on = !!on; if (MODE.off === on) return;
+  MODE.off = on; store.set('offmode', on ? '1' : '0');
+  setOnlineUI(); syncModeUI();
+  if (on) {
+    toast('Offline mode on · playing from your downloads');
+    if (NET_ONLY.includes(view)) show('downloads'); else if (view === 'downloads') renderDownloads();
+  } else {
+    toast(navigator.onLine ? 'Offline mode off · back online' : 'Offline mode off · your device has no connection');
+    if (view === 'downloads') renderDownloads();
+  }
+}
+function setIncog(on){
+  on = !!on; if (MODE.inc === on) return;
+  try { actSave(true); } catch {}                                   // commit what was heard before the switch
+  MODE.inc = on;
+  try { on ? sessionStorage.setItem('incog', '1') : sessionStorage.removeItem('incog'); } catch {}
+  sess = { id: null, sec: 0, logged: false, last: 0 };               // start a clean listening session on either side of the switch
+  syncModeUI();
+  toast(on ? 'Incognito on · your listening isn’t saved' : 'Incognito off');
+}
+
 /* lyrics-mode helpers */
+/* streaming notice: shown once (must be acknowledged), reopenable from Settings */
+function showNotice(){ const n = $('notice'); if (n) { n.classList.add('on'); setTimeout(() => $('ntOk').focus(), 60); } }
+function maybeShowNotice(){
+  if (store.get('slowAck', '') === '1' || base() !== PUBLIC_API) return;   // only for the shared main server
+  const lp = $('langpick'); if (lp && lp.classList.contains('on')) return setTimeout(maybeShowNotice, 1500);
+  showNotice();
+}
+$('ntOk').onclick = () => { store.set('slowAck', '1'); $('notice').classList.remove('on'); };
 const lyFull = () => $('npv').classList.contains('lyfull');
 const lyBack = () => $('npr').classList.remove('up');
 const DOTS = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="18.5" cy="12" r="2"/></svg>';
@@ -1519,6 +1720,11 @@ const ICONS = {
   check:'M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z'
 };
 const STROKES = {
+  queue:'<line x1="3" y1="6" x2="15" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="10" y2="18"/><line x1="18" y1="13" x2="18" y2="21"/><line x1="14" y1="17" x2="22" y2="17"/>',
+  list:'<line x1="9" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="9" y1="18" x2="21" y2="18"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
+  album:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/>',
+  minusc:'<circle cx="12" cy="12" r="9"/><line x1="8" y1="12" x2="16" y2="12"/>',
+  sort:'<line x1="4" y1="7" x2="14" y2="7"/><line x1="4" y1="12" x2="10" y2="12"/><line x1="4" y1="17" x2="7" y2="17"/><polyline points="16 14 19 17 22 14"/><line x1="19" y1="7" x2="19" y2="17"/>',
   grip:'<line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="16" x2="20" y2="16"/>',
   shuffle:'<polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/>',
   repeat:'<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/>',
@@ -1577,12 +1783,31 @@ function pickLang(){
   });
 }
 const hd = () => store.get('key', '') ? { 'X-API-Key': store.get('key', '') } : {};
+/* slow-connection detection (Network Information API where available) */
+const slowNet = () => { const c = navigator.connection; if (!c) return false; return !!c.saveData || /^(slow-2g|2g|3g)$/.test(c.effectiveType || '') || (c.downlink > 0 && c.downlink < 1.5); };
+const LITE = () => {
+  const m = store.get('lite', 'auto'); if (m === 'on') return true; if (m === 'off') return false;
+  const dm = navigator.deviceMemory, hc = navigator.hardwareConcurrency;
+  return slowNet() || (!!dm && dm <= 3) || (!!hc && hc <= 4);
+};
+const applyLite = () => { try { document.documentElement.classList.toggle('lite', !!LITE()); } catch {} };
+applyLite();
+try { if (navigator.connection && navigator.connection.addEventListener) navigator.connection.addEventListener('change', applyLite); } catch {}
+/* fetch with a timeout (counted until headers arrive) and one quiet retry on network failure */
+async function fetchT(url, opt, ms, retry){
+  for (let n = 0; ; n++) {
+    const ac = new AbortController(), tm = setTimeout(() => ac.abort(), ms);
+    try { const r = await fetch(url, Object.assign({}, opt, { signal: ac.signal })); clearTimeout(tm); return r; }
+    catch (e) { clearTimeout(tm); if (n >= (retry ? 1 : 0) || !isOnline()) throw e; await new Promise(r => setTimeout(r, 1200)); }
+  }
+}
+const LONG_API = /^\/(download|import|spotify|ytm)/;
 async function api(path){
   if (!window.__unlocked) throw new Error('Sign in required');
-  if (!navigator.onLine) throw new Error("You're offline");
+  if (!isOnline()) throw new Error("You're offline");
   let r;
-  try { r = await fetch(base() + path, { headers: hd() }); }
-  catch { throw new Error('Cannot reach the API at ' + base() + '. Is the server running?'); }
+  try { r = await fetchT(base() + path, { headers: hd() }, LONG_API.test(path) ? 180000 : 30000, !LONG_API.test(path)); }
+  catch { throw new Error(isOnline() ? 'The server is slow or unreachable right now. Check your connection and try again.' : "You're offline"); }
   if (!r.ok) {
     let m = r.statusText;
     try { m = (await r.json()).detail || m } catch {}
@@ -1593,7 +1818,7 @@ async function api(path){
 /* Spotify / YouTube Music routes: try the on-device backend first; if it is an older build without the route (404/405), use the public API */
 async function apiFB(path, body){
   if (!window.__unlocked) throw new Error('Sign in required');
-  if (!navigator.onLine) throw new Error("You're offline");
+  if (!isOnline()) throw new Error("You're offline");
   const bases = [base()]; if (bases[0] !== PUBLIC_API) bases.push(PUBLIC_API);
   let last;
   for (let i = 0; i < bases.length; i++) {
@@ -1614,7 +1839,7 @@ async function apiFB(path, body){
 /* lyrics always come from the public API (never the on-device backend) */
 async function apiPublic(path){
   if (!window.__unlocked) throw new Error('Sign in required');
-  if (!navigator.onLine) throw new Error("You're offline");
+  if (!isOnline()) throw new Error("You're offline");
   let r;
   try { r = await fetch(PUBLIC_API + path, { headers: hd() }); }
   catch { throw new Error('Cannot reach the API at ' + PUBLIC_API); }
@@ -1632,6 +1857,7 @@ const cov = (t, s = 320) => {
   return rawCov(t, s);
 };
 const rawCov = (t, s = 320) => {
+  if (s > 400 && slowNet()) s = 400;
   const u = t.thumbnail || '';
   if (GOOG.test(u)) return u.replace(/=[wsh]\d+[^/]*$/, `=w${s}-h${s}-l90-rj`);
   if (t.kind) return u;
@@ -1644,13 +1870,24 @@ function imgErr(el){
   if (!el.src.includes('/cover/')) { el.onerror = () => imgErr(el); el.src = `${base()}/cover/${id}?s=320`; }
   else { el.onerror = () => { el.onerror = null; el.src = PH; }; el.src = 'https://i.ytimg.com/vi/' + id + '/mqdefault.jpg'; }
 }
-const imgTag = (t, s, extra = '') => `<img ${extra} loading="lazy" src="${esc(cov(t, s))}" alt="" data-id="${esc(t.id)}" ${t.kind ? 'data-e="1"' : ''} onerror="imgErr(this)">`;
+const imgTag = (t, s, extra = '') => `<img ${extra} loading="lazy" decoding="async" src="${esc(cov(t, s))}" alt="" data-id="${esc(t.id)}" ${t.kind ? 'data-e="1"' : ''} onerror="imgErr(this)">`;
 function setImg(el, t, s){
   const u = cov(t, s); el.dataset.id = t.id; el.onerror = () => imgErr(el);
   if (!el.getAttribute('src')) { el.src = u; return; }
   const im = new Image();                       // keep the old cover until the new one is ready
   im.onload = im.onerror = () => { if (el.dataset.id === t.id) el.src = u; };
   im.src = u;
+}
+/* progressive cover: show the small (already loaded) art straight away, then swap in the sharp one when it arrives */
+function setImgProg(el, t, small, big){
+  const lo = cov(t, small), hi = cov(t, big);
+  const same = el.dataset.id === t.id;
+  el.dataset.id = t.id; el.onerror = () => imgErr(el);
+  if (!same || !el.getAttribute('src')) el.src = lo;
+  if (hi === lo) return;
+  const im = new Image();
+  im.onload = () => { if (el.dataset.id === t.id) el.src = hi; };
+  im.src = hi;
 }
 let tt;
 function toast(msg, err){
@@ -1841,7 +2078,7 @@ function pushPlaylists(){
 function savePl(){ clearTimeout(plT); plT = setTimeout(pushPlaylists, 400); queueAutoDl(); return true; }
 function queueAutoDl(){ clearTimeout(autoT); autoT = setTimeout(autoDlAll, 1500); }
 function autoDlAll(){ return;   // auto-download removed
-  if (!acctReady || !dlsReady || !navigator.onLine) return;
+  if (!acctReady || !dlsReady || !isOnline()) return;
   for (const p of playlists) if (p.autodl && p.tracks.length) downloadAll(p.tracks, p.name, { id: p.id, label: p.name }, true);
 }
 const flushPlaylists = () => { pushPlaylists(); return acct.flushed(); };
@@ -1863,7 +2100,7 @@ async function initAccount(){
   } catch (e) {
     toast("Couldn't load your library. Retrying…", true);
     clearTimeout(acctRetryT);
-    acctRetryT = setTimeout(() => { if (!acctReady && window.__unlocked && navigator.onLine) initAccount().then(refreshAccountView); }, 15000);
+    acctRetryT = setTimeout(() => { if (!acctReady && window.__unlocked && isOnline()) initAccount().then(refreshAccountView); }, 15000);
   }
 }
 function requireUsername(){
@@ -1889,6 +2126,7 @@ let dls = []; const dlActive = {}; let offUrl = null;
 let autoT = 0; const autoFailed = new Set();   // auto-download: debounce timer + songs that failed this session (not retried until reload)
 const dlJobs = []; let dlRunning = false, dlStale = false, dlPanelT = 0;   // download queue: playlist jobs + stale-list flag
 let queue = [], qi = -1, token = 0, current = null;
+let queueOwned = false, qEnd = -1;   // user queue: songs added with "Add to queue" sit right after the playing song, at indexes qi+1..qEnd
 let shuffle = false, repeat = 'off', queueName = '', npTab = 'queue', seeking = false;
 const isLiked = id => liked.some(t => t.id === id);
 const isSaved = e => saved.some(s => s.kind === e.kind && s.id === e.id);
@@ -1956,7 +2194,7 @@ const backBtn = (cls = '') => `<button id="backBtn" class="bk ${cls}" data-ic="b
 
 const NET_ONLY = ['home', 'search', 'charts', 'mood', 'entity', 'shared', 'user', 'profile'];
 function show(v, arg, back){
-  if (!navigator.onLine && NET_ONLY.includes(v)) { v = 'downloads'; arg = undefined; toast("You're offline · showing your downloads"); }
+  if (!isOnline() && NET_ONLY.includes(v)) { v = 'downloads'; arg = undefined; toast("You're offline · showing your downloads"); }
   closeNP();
   document.querySelectorAll('body > #backBtn,body > #amenu').forEach(b => b.remove());
   const detail = ['list', 'entity', 'mood', 'upl', 'shared', 'user', 'settings'].includes(v);
@@ -1981,10 +2219,10 @@ new MutationObserver(() => {
 }).observe($('main'), { childList: true, subtree: true });
 function goBack(){ const p = stack.pop() || { v: 'home' }; show(p.v, p.arg, true); }
 /* offline mode: body.offline drives the "You're offline" pill, hides Home/Search and dims songs that aren't downloaded */
-function setOnlineUI(){ document.body.classList.toggle('offline', !navigator.onLine); try { markPlaying(); } catch {} }
+function setOnlineUI(){ document.body.classList.toggle('offline', !isOnline()); try { syncModeUI(); } catch {} try { markPlaying(); } catch {} }
 window.addEventListener('offline', setOnlineUI);
 window.addEventListener('online', setOnlineUI);
-setOnlineUI();
+setOnlineUI(); syncModeUI();
 
 /* ---------- browser / swipe-back: step through the app's own pages, only exit from Home ---------- */
 let hHave = 0, hSkip = false, hPop = false, hFirst = true;
@@ -2013,18 +2251,25 @@ function renderHome(){
   fillCont();
   fillArtistRecs();
   if (homeData) return fillHome();
+  const c = jget('homecache', null);
+  if (c && c.lang === lang() && c.d && c.d.sections && c.d.sections.length) {   // show last time's home instantly, refresh in the background
+    homeData = c.d; fillHome(); loadHome(true, true); return;
+  }
   $('rows').innerHTML = skeleton() + skeleton();
   loadHome(false);
 }
 let homeP = null;
-function loadHome(refresh){
+function loadHome(refresh, quiet){
   if (homeP && !refresh) return homeP;
   homeP = (async () => {
     try {
-      homeData = await (await api('/home?lang=' + lang() + (refresh ? '&refresh=true' : ''))).json();
-      if (!homeData.sections.length) throw new Error('No results came back. Try updating yt-dlp and ytmusicapi.');
-      if (view === 'home') renderHome(); else if (view === 'search') paintRecs();
+      const d = await (await api('/home?lang=' + lang() + (refresh && !quiet ? '&refresh=true' : ''))).json();
+      if (!d.sections.length) throw new Error('No results came back. Try updating yt-dlp and ytmusicapi.');
+      homeData = d; store.set('homecache', JSON.stringify({ lang: lang(), d }));
+      if (quiet) { if (view === 'home' && $('rows')) paintSections(d.sections, 's_'); }
+      else if (view === 'home') renderHome(); else if (view === 'search') paintRecs();
     } catch (e) {
+      if (quiet) return;   // keep showing the cached home
       homeData = null;
       if (view === 'home' && $('rows')) { $('rows').innerHTML = `<div class="pg"><p class="err">${esc(e.message)}</p><button class="btn" id="retry">Retry</button></div>`; $('retry').onclick = renderHome; }
       else if (view === 'search' && $('recs')) $('recs').innerHTML = `<p class="qmsg err">${esc(e.message)}</p>`;
@@ -2070,10 +2315,10 @@ async function fillArtistRecs(){
       if (name && !seen.has(name.toLowerCase())) {
         seen.add(name.toLowerCase());
         artists.push({ name, id: a.id });
-        if (artists.length >= 3) break;
+        if (artists.length >= (LITE() ? 1 : 3)) break;
       }
     }
-    if (artists.length >= 3) break;
+    if (artists.length >= (LITE() ? 1 : 3)) break;
   }
   if (!artists.length) { box.innerHTML = ''; return; }
   /* Show skeleton placeholders while loading */
@@ -2248,6 +2493,7 @@ function paintRecs(){
   box.innerHTML = recent + `<div class="pg"><h3 class="sec0" style="margin-top:6px">Browse by mood</h3><div class="moods">${MOOD_DEF.map(([n, a, b]) => `<button class="mood" data-mood="${esc(n)}" style="--a:${a};--b:${b}"><i></i>${esc(n)}</button>`).join('')}</div></div>`;
 }
 function pushRecentSearch(q){
+  if (MODE.inc) return;                                              // Incognito: no recent searches
   store.set('rsearch', JSON.stringify([q, ...jget('rsearch', []).filter(x => x.toLowerCase() !== q.toLowerCase())].slice(0, 8)));
 }
 function setChip(t){ searchType = t; document.querySelectorAll('.chip[data-type]').forEach(x => x.classList.toggle('on', x.dataset.type === t)); }
@@ -2310,15 +2556,13 @@ function renderLiked(){
   lists.liked = liked; names.liked = 'Liked songs'; listKey = 'liked';
   const pc = plCards();
   $('main').innerHTML = `<div class="pg"><h1 class="t">Library</h1>
-    <div class="libact"><button class="btn" id="plNew">${ic('plus', 16)} New playlist</button><div class="btn ghost impbtn" id="impBtn" role="group" aria-label="Import"><button type="button" class="impl" id="impAny">Import</button><button type="button" class="impi" id="spImp" title="Import from Spotify" aria-label="Import from Spotify">${IMP_SP}</button><button type="button" class="impi" id="plImp" title="Import from YouTube Music" aria-label="Import from YouTube Music">${IMP_YT}</button></div></div>
+    <div class="libact"><button class="btn" id="plNew">${ic('plus', 16)} New playlist</button><button class="btn ghost" id="impAny">Import</button></div>
     <h3 class="sec0">Playlists</h3>
-    ${pc.length ? gridHtml('uplist', pc) : '<p class="qmsg">No playlists yet. Create one, or paste the link of a public YouTube Music playlist to import it.</p>'}
+    ${gridHtml('uplist', pc)}
+    ${playlists.length ? '' : '<p class="qmsg">No other playlists yet. Create one, or paste the link of a public YouTube Music playlist to import it.</p>'}
     ${saved.length ? `<h3 class="sec0">Saved</h3>${gridHtml('saved', saved)}` : ''}
-    <div class="lh"><h3 class="sec0">Liked songs</h3>${liked.length ? '<button class="pill" id="dlLiked">Download all</button>' : ''}</div>
-    ${liked.length ? liked.map(lrow).join('') : '<p class="qmsg">Nothing here yet. Tap the heart on a song, or save an album or artist.</p>'}</div>`;
+</div>`;
   $('plNew').onclick = () => promptName({ title: 'New playlist', cta: 'Create', onOk: v => { createPlaylist(v); toast(`Created "${v}"`); if (view === 'liked') renderLiked(); } });
-  $('plImp').onclick = openImport;
-  $('spImp').onclick = () => openSpotifyImport();
   $('impAny').onclick = () => {
     const sh = openModal(`<h3>Import playlist</h3>
       <button class="plr" data-imp="sp"><span class="plc">${IMP_SP}</span><span class="qm"><b>Spotify</b><span>Playlist, album or song link, or your data export</span></span></button>
@@ -2326,7 +2570,6 @@ function renderLiked(){
       <div class="mbtns"><button class="btn ghost" data-mc>Cancel</button></div>`);
     sh.onclick = e => { const r = e.target.closest('[data-imp]'); if (!r) return; closeModal(); r.dataset.imp === 'sp' ? openSpotifyImport() : openImport(); };
   };
-  if ($('dlLiked')) $('dlLiked').onclick = () => downloadAll(liked, 'Liked songs');
 }
 function renderSettings(){
   const dsz = dls.reduce((n, d) => n + (d.size || 0), 0);
@@ -2334,19 +2577,29 @@ function renderSettings(){
     <section class="sgrp glass" id="sInstRow" ${isInstalled() ? 'hidden' : ''}><h3>Get the app</h3>
       <div class="srow"><div><b>Install Isai</b><span>Android app (APK) or add to your iPhone Home Screen</span></div><button class="btn ghost" onclick="window.__openInstall()">Install</button></div>
     </section>
+    <section class="sgrp glass"><h3>Help</h3>
+      <div class="srow"><div><b>Streaming tips</b><span>Why the main server can be slow and how to download playlists for offline listening</span></div><button class="btn ghost" id="sNotice">Read</button></div>
+    </section>
     <section class="sgrp glass"><h3>Account</h3>
       <div class="srow"><div><b>Signed in</b><span>Sign out to lock Isai on this device</span></div><button class="btn ghost" id="sOut">Sign out</button></div>
     </section>
+    <section class="sgrp glass"><h3>Modes</h3>
+      <div class="srow tgl"><div><b>Offline mode</b><span>Play only your downloaded songs and stop all network use. Changes you make are saved and sync when you turn it off</span></div><button class="sw" id="sOff" role="switch" aria-label="Offline mode" aria-checked="${MODE.off}"></button></div>
+      <div class="srow tgl"><div><b>Incognito</b><span>Songs you play aren’t added to Listen again, listening activity, your listening status or recent searches. Ends when you close Isai</span></div><button class="sw" id="sInc" role="switch" aria-label="Incognito" aria-checked="${MODE.inc}"></button></div>
+    </section>
+    <section class="sgrp glass"><h3>Performance</h3>
+      <div class="srow"><div><b>Lite mode</b><span>Turns off blur and animations to save battery and data. Auto switches on for slow connections and low-power phones</span></div><button class="spick" id="sLite"><span>${({ auto: 'Auto', on: 'Lite', off: 'Full' })[store.get('lite', 'auto')] || 'Auto'}</span>${ic('chev', 14)}</button></div>
+    </section>
     <section class="sgrp glass"><h3>Music</h3>
-      <label class="srow"><div><b>Music language</b><span>Customises your home page and moods</span></div><select id="sLang">${LANGS.map(l => `<option value="${l}" ${l === lang() ? 'selected' : ''}>${LANG_LABEL[l]}</option>`).join('')}</select></label>
-      <label class="srow"><div><b>Pronunciation</b><span>Show Tanglish / romanised text under lyrics (Tamil, Hindi, Telugu, Korean and more)</span></div><select id="sTl"><option value="0" ${lyTl() ? '' : 'selected'}>Off</option><option value="1" ${lyTl() ? 'selected' : ''}>On</option></select></label>
+      <div class="srow"><div><b>Music language</b><span>Customises your home page and moods</span></div><button class="spick" id="sLang" data-v="${lang()}"><span>${LANG_LABEL[lang()]}</span>${ic('chev', 14)}</button></div>
+      <div class="srow tgl"><div><b>Pronunciation</b><span>Show Tanglish / romanised text under lyrics (Tamil, Hindi, Telugu, Korean and more)</span></div><button class="sw" id="sTl" role="switch" aria-label="Pronunciation" aria-checked="${lyTl()}"></button></div>
     </section>
     <section class="sgrp glass"><h3>Server</h3>
       <label class="srow"><div><b>API base URL</b><span>Where your Thirai server is running</span></div><input id="sBase" value="${esc(base())}" spellcheck="false" autocapitalize="off"></label>
       <label class="srow"><div><b>API key</b><span>Only needed if the server has API_KEY set</span></div><input id="sKey" type="password" value="${esc(store.get('key', ''))}" placeholder="Optional" autocomplete="off"></label>
     </section>
     <section class="sgrp glass"><h3>Downloads</h3>
-      <label class="srow"><div><b>Format</b><span>Used for new downloads</span></div><select id="sFmt">${['mp3','m4a','opus','flac','wav','best'].map(f => `<option ${f === store.get('fmt', 'mp3') ? 'selected' : ''}>${f}</option>`).join('')}</select></label>
+      <div class="srow"><div><b>Format</b><span>Used for new downloads</span></div><button class="spick" id="sFmt"><span>${store.get('fmt', 'mp3').toUpperCase()}</span>${ic('chev', 14)}</button></div>
       <div class="srow"><div><b>Stored offline</b><span>${dls.length} song${dls.length === 1 ? '' : 's'}${dsz ? ' · ' + fmtSize(dsz) : ''}</span></div><button class="btn ghost" data-view="downloads">Manage</button></div>
     </section>
     <section class="sgrp glass"><h3>Data</h3>
@@ -2355,13 +2608,31 @@ function renderSettings(){
       <div class="srow"><div><b>Listen again</b><span>Clear your recently played history</span></div><button class="btn ghost" id="sClr">Clear</button></div>
       <div class="srow"><div><b>Clear all data</b><span>Delete your playlists, liked songs, saved items and listening history</span></div><button class="btn ghost danger" id="sWipe">Clear data</button></div>
     </section></div>`;
+  $('sLite').onclick = async () => {
+    const cur = store.get('lite', 'auto');
+    const v = await pickDialog({ title: 'Lite mode', options: [{ v: 'auto', label: 'Auto' }, { v: 'on', label: 'Lite (always)' }, { v: 'off', label: 'Full (all effects)' }], value: cur });
+    if (!v || v === cur) return;
+    store.set('lite', v); applyLite(); toast('Lite mode: ' + ({ auto: 'Auto', on: 'On', off: 'Off' })[v]); if (view === 'settings') renderSettings();
+  };
+  $('sNotice').onclick = showNotice;
+  $('sOff').onclick = () => setOffMode(!MODE.off);
+  $('sInc').onclick = () => setIncog(!MODE.inc);
   $('sOut').onclick = () => window.__signOut();
   $('sUser').onclick = () => askUsername(() => { closeModal(); toast('Username saved'); if (view === 'settings') renderSettings(); });
   $('sBase').onchange = e => store.set('base', e.target.value.trim());
   $('sKey').onchange = e => store.set('key', e.target.value);
-  $('sTl').onchange = e => { store.set('lytl', e.target.value); toast(e.target.value === '1' ? 'Pronunciation on' : 'Pronunciation off'); };
-  $('sLang').onchange = e => { applyLang(e.target.value); toast('Language set to ' + LANG_LABEL[e.target.value]); };
-  $('sFmt').onchange = e => { store.set('fmt', e.target.value); toast('Format set to ' + e.target.value); };
+  $('sTl').onclick = e => { const on = !lyTl(); store.set('lytl', on ? '1' : '0'); e.currentTarget.setAttribute('aria-checked', on); toast(on ? 'Pronunciation on' : 'Pronunciation off'); };
+  $('sLang').onclick = async () => {
+    const v = await pickDialog({ title: 'Music language', options: LANGS.map(l => ({ v: l, label: LANG_LABEL[l] })), value: lang() });
+    if (!v || v === lang()) return;
+    applyLang(v); toast('Language set to ' + LANG_LABEL[v]); if (view === 'settings') renderSettings();
+  };
+  $('sFmt').onclick = async () => {
+    const cur = store.get('fmt', 'mp3');
+    const v = await pickDialog({ title: 'Download format', options: ['mp3','m4a','opus','flac','wav','best'].map(f => ({ v: f, label: f.toUpperCase() })), value: cur });
+    if (!v || v === cur) return;
+    store.set('fmt', v); toast('Format set to ' + v.toUpperCase()); if (view === 'settings') renderSettings();
+  };
   $('sRef').onclick = () => { homeData = null; for (const k in entCache) delete entCache[k]; toast('Refreshing…'); show('home'); loadHome(true); };
   $('sClr').onclick = () => { recent = []; acct.send('DELETE', '/isai/library/recent'); toast('Cleared'); };
   $('sWipe').onclick = confirmClearData;
@@ -2403,7 +2674,7 @@ function syncBadges(){
 }
 function markPlaying(){
   syncBadges();
-  { const off = !navigator.onLine, have = off ? new Set(dls.map(d => d.id)) : null;
+  { const off = !isOnline(), have = off ? new Set(dls.map(d => d.id)) : null;
     document.querySelectorAll('.tr.lrow').forEach(r => r.classList.toggle('nodl', off && !have.has(r.dataset.id))); }
   document.querySelectorAll('.card,.lrow').forEach(c => {
     const on = !!current && c.dataset.id === current.id;
@@ -2411,8 +2682,8 @@ function markPlaying(){
   });
 }
 function playFrom(key, i, open = true){
-  queue = lists[key] || []; queueName = names[key] || ''; qi = i;
-  if (!navigator.onLine) {   // offline: only downloaded songs can play, so queue just those
+  queue = lists[key] || []; queueName = names[key] || ''; qi = i; queueOwned = false; qEnd = -1;
+  if (!isOnline()) {   // offline: only downloaded songs can play, so queue just those
     const have = new Set(dls.map(d => d.id)), cur = queue[i];
     if (!cur || !have.has(cur.id)) { toast("You're offline · this song isn't downloaded", true); return; }
     queue = queue.filter(t => have.has(t.id)); qi = queue.indexOf(cur);
@@ -2428,6 +2699,68 @@ let a = $('audio'), standby = mkMedia(), pending = false, loading = false;   // 
 standby.preload = 'auto';
 let resume = { id: null, n: 0 }, lastAuto = 0;   // guards against streams that report 'ended' early
 const resetSeek = () => { $('seek').value = $('mseek').value = 0; fillRange($('seek')); fillRange($('mseek')); $('mprog').style.width = '0'; };
+
+/* ---------- preload the next song ----------
+   While a song plays, the song that will come after it is already being fetched into a spare
+   media element (`pre`). When playback moves on, playCurrent() adopts that element instead of
+   starting from scratch, so the next track starts instantly. */
+let pre = null, preTok = 0, preT = 0, nextPick = { q: null, qi: -1, idx: -1 };
+function releaseEl(e){
+  if (!e) return;
+  try { e.pause(); e.removeAttribute('src'); e.load(); } catch {}
+  if (e._blob) { URL.revokeObjectURL(e._blob); e._blob = null; }
+}
+function dropPre(){ preTok++; clearTimeout(preT); releaseEl(pre); pre = null; }
+/* index of the song step(1) would go to (a shuffle pick is remembered so step() uses the very same one); -1 = none */
+function peekNextIdx(){
+  const len = queue.length; if (!len || qi < 0) return -1;
+  if (qEnd > qi) return qi + 1;   // queued songs always come first, even with shuffle on
+  if (shuffle && len > 1) {
+    const p = nextPick;
+    if (p.q !== queue || p.qi !== qi || p.idx < 0 || p.idx >= len || p.idx === qi) {
+      let n; do { n = Math.floor(Math.random() * len); } while (n === qi);
+      nextPick = { q: queue, qi, idx: n };
+    }
+    return nextPick.idx;
+  }
+  const n = qi + 1;
+  if (n >= len) return (repeat === 'off' || len < 2) ? -1 : 0;   // end of the queue with repeat off: nothing follows
+  return n;
+}
+async function preloadNext(){
+  const my = ++preTok;
+  if (!current || loading) return;
+  if (slowNet() && !(dls.some(d => d.id === current.id))) {   // slow link: let the current song buffer fully first
+    const b = a.buffered, d = a.duration || 0;
+    if (!d || !b.length || b.end(b.length - 1) < d - 3) { clearTimeout(preT); preT = setTimeout(preloadNext, 6000); return; }
+  }
+  const i = peekNextIdx(), t = i >= 0 ? queue[i] : null;
+  if (!t || t.id === current.id) { releaseEl(pre); pre = null; return; }
+  try { new Image().src = cov(t, 160); if (!LITE()) new Image().src = cov(t, 600); } catch {}   // next song's art is ready before it starts
+  if (pre && pre._tid === t.id && !pre._err) return;               // already preloaded
+  releaseEl(pre); pre = null;
+  try {
+    let url = null, blobUrl = null;
+    if (dls.some(d => d.id === t.id)) {                              // downloaded: read it from the device
+      const bl = await idb.blob(t.id).catch(() => null);
+      if (my !== preTok) return;
+      if (bl) url = blobUrl = URL.createObjectURL(bl);
+    }
+    if (!url) {
+      if (!isOnline()) return;
+      if (navigator.connection && navigator.connection.saveData) return;   // respect Data Saver
+      url = audioUrl(t.id);
+    }
+    if (my !== preTok) { if (blobUrl) URL.revokeObjectURL(blobUrl); return; }
+    const e = mkMedia(); wire(e);
+    e.volume = a.volume; e._tid = t.id; e._blob = blobUrl;
+    e.addEventListener('error', () => { e._err = true; });
+    e.src = url; e.load();
+    pre = e;
+  } catch {}
+}
+const schedulePreload = (ms = 2500) => { clearTimeout(preT); preT = setTimeout(preloadNext, ms); };   // small delay so the current song gets the bandwidth first
+
 async function playCurrent(startAt = 0){
   const t = queue[qi]; if (!t) return;
   const my = ++token; current = t; loading = true;
@@ -2439,8 +2772,11 @@ async function playCurrent(startAt = 0){
     if (standby && !standby.paused) standby.pause();
   } catch {}
   pending = false;
+  clearTimeout(preT); preTok++;                                    // cancel any preload in flight
+  if (pre && pre._tid !== t.id) { releaseEl(pre); pre = null; }     // keep it only if it's the song we're about to play
 
   $('player').classList.add('on');
+  rememberLast(t);
   setImg($('pimg'), t, 160);
   $('ptitle').textContent = t.title; $('partist').innerHTML = artistLinks(t);
   $('dur').textContent = $('mdur').textContent = '-' + fmt(t.duration);
@@ -2452,21 +2788,29 @@ async function playCurrent(startAt = 0){
   markPlaying(); updateNP(); tint(t); msMeta(t);
   lyProbe(t);
   try {
-    const blob = dls.some(d => d.id === t.id) ? await idb.blob(t.id).catch(() => null) : null;
-    if (my !== token) return;
-    if (!blob && !navigator.onLine) throw new Error("You're offline · this song isn't downloaded");
-    let url, blobUrl = null;
-    if (blob) url = blobUrl = URL.createObjectURL(blob);
-    else url = audioUrl(t.id);
-    const n = standby;
-    n.volume = a.volume; n.src = url;
+    let n, blobUrl = null;
+    if (pre && pre._tid === t.id && !pre._err && !pre.error) {       // the song was preloaded: reuse it
+      n = pre; pre = null; blobUrl = n._blob || null; n.volume = a.volume;
+    } else {
+      if (pre) dropPre();
+      const blob = dls.some(d => d.id === t.id) ? await idb.blob(t.id).catch(() => null) : null;
+      if (my !== token) return;
+      if (!blob && !isOnline()) throw new Error("You're offline · this song isn't downloaded");
+      let url;
+      if (blob) url = blobUrl = URL.createObjectURL(blob);
+      else url = audioUrl(t.id);
+      n = standby;
+      n.volume = a.volume; n.src = url;
+    }
     await new Promise((res, rej) => {
       const ok = () => { off(); res(); }, bad = () => { off(); rej(new Error('Could not load this track')); };
       const off = () => { n.removeEventListener('canplay', ok); n.removeEventListener('error', bad); };
       n.addEventListener('canplay', ok); n.addEventListener('error', bad);
+      const to = setTimeout(() => { off(); rej(new Error('Slow connection · tap play to try again')); }, 60000);
+      const clr = () => clearTimeout(to); n.addEventListener('canplay', clr, { once: true }); n.addEventListener('error', clr, { once: true });
       if (n.readyState >= 3) ok();
     });
-    if (my !== token) { if (blobUrl) URL.revokeObjectURL(blobUrl); return; }
+    if (my !== token) { if (blobUrl) URL.revokeObjectURL(blobUrl); if (n !== standby) releaseEl(n); return; }
     const old = a;
     a = n; standby = old; pending = false; n._tid = t.id; loading = false;
     old.pause(); old.removeAttribute('src'); old.load();
@@ -2476,7 +2820,9 @@ async function playCurrent(startAt = 0){
     $('mpp').classList.remove('loading');
     resetSeek(); $('dur').textContent = $('mdur').textContent = '-' + fmt(n.duration || t.duration);
     if (startAt > 1) { try { a.currentTime = startAt; } catch {} }
+    userPaused = false; buffering = false; wdN = 0; wdT = -1;
     await a.play(); setPP(); addRecent(t);
+    schedulePreload();
   } catch (e) {
     if (my === token) {
       pending = false; loading = false;
@@ -2487,7 +2833,29 @@ async function playCurrent(startAt = 0){
     }
   }
 }
+/* ---- last played song: shown in the pill when the app reopens ---- */
+let restorePos = 0, userPaused = false, buffering = false;
+function rememberLast(t, pos){
+  if (MODE.inc) return;
+  store.set('lastTrack', JSON.stringify({ t: slim(t), pos: pos || 0 }));
+}
+function restoreLast(){
+  if (current) return;
+  const o = jget('lastTrack', null);
+  const t = (o && o.t && o.t.id) ? o.t : recent[0];
+  if (!t) return;
+  queue = [t, ...recent.filter(r => r.id !== t.id)]; queueName = 'Listen again'; qi = 0; queueOwned = false; qEnd = -1;
+  current = t; restorePos = (o && o.t && o.t.id === t.id) ? (o.pos || 0) : 0;
+  $('player').classList.add('on');
+  setImg($('pimg'), t, 160);
+  $('ptitle').textContent = t.title; $('partist').innerHTML = artistLinks(t);
+  $('dur').textContent = $('mdur').textContent = '-' + fmt(t.duration);
+  $('cur').textContent = $('mcur').textContent = fmt(restorePos);
+  if (t.duration && restorePos) { const p = restorePos / t.duration; $('seek').value = $('mseek').value = p * 1000; fillRange($('seek')); fillRange($('mseek')); $('mprog').style.width = (p * 100) + '%'; }
+  setPP(); markPlaying(); updateNP(); tint(t); msMeta(t);
+}
 function addRecent(t){
+  if (MODE.inc) return;                                              // Incognito: no Listen again, no status
   recent = [slim(t), ...recent.filter(r => r.id !== t.id)].slice(0, 20);
   acct.send('POST', '/isai/library/recent', { items: [slim(t)] });
   queueStatus();
@@ -2496,7 +2864,8 @@ function addRecent(t){
 function step(d, auto){
   if (!queue.length) return;
   if (auto) { const now = Date.now(); if (now - lastAuto < 1500) return; lastAuto = now; }   // never double-advance
-  if (shuffle && d > 0 && queue.length > 1) { let n; do { n = Math.floor(Math.random() * queue.length) } while (n === qi); qi = n; }
+  if (d > 0 && qEnd > qi) { qi++; playCurrent(); return; }   // play what the user queued first
+  if (shuffle && d > 0 && queue.length > 1) { qi = peekNextIdx(); nextPick.idx = -1; }
   else { const n = qi + d; if (auto && n >= queue.length && repeat === 'off') return; qi = (n + queue.length) % queue.length; }
   playCurrent();
 }
@@ -2504,15 +2873,16 @@ const doNext = () => step(1);
 const doPrev = () => (!loading && a.currentTime > 4) ? (a.currentTime = 0) : step(-1);
 const doPP = () => {
   if (loading || !current) return;   // a new song is loading: don't resume the previous one
-  if (!a.src || a._tid !== current.id) return playCurrent();   // nothing valid loaded for this song (e.g. the load failed): retry it
-  a.paused ? a.play() : a.pause();
+  if (!a.src || a._tid !== current.id) { const p = restorePos; restorePos = 0; userPaused = false; return playCurrent(p); }   // nothing loaded yet (fresh launch / failed load): start it, resuming where it left off
+  if (a.paused) { userPaused = false; a.play().catch(() => playCurrent(a.currentTime || 0)); } else { userPaused = true; a.pause(); }
 };
-function setShuffle(on){ shuffle = on; document.querySelectorAll('#shuf,#mshuf').forEach(b => b.classList.toggle('on', on)); }
+function setShuffle(on){ shuffle = on; document.querySelectorAll('#shuf,#mshuf').forEach(b => b.classList.toggle('on', on)); if (current) schedulePreload(600); }
 function doShuf(){ setShuffle(!shuffle); toast('Shuffle ' + (shuffle ? 'on' : 'off')); }
 function doRep(){
   repeat = { off: 'all', all: 'one', one: 'off' }[repeat];
   document.querySelectorAll('#rep,#mrep').forEach(b => b.className = repeat === 'off' ? '' : 'on ' + repeat);
   toast('Repeat: ' + repeat);
+  if (current) schedulePreload(600);
 }
 $('next').onclick = $('mnext').onclick = doNext;
 $('prev').onclick = $('mprev').onclick = doPrev;
@@ -2528,7 +2898,7 @@ function msMeta(t){
   try {
     const art = artistsOf(t).map(x => x.name).join(', ') || t.artist || '';
     MS.metadata = new MediaMetadata({ title: t.title || '', artist: art, album: t.album || '',
-      artwork: [96, 192, 256, 384, 512].map(n => ({ src: new URL(cov(t, n), location.href).href, sizes: n + 'x' + n })) });
+      artwork: ((slowNet() || LITE()) ? [96, 256] : [96, 192, 256, 384, 512]).map(n => ({ src: new URL(cov(t, n), location.href).href, sizes: n + 'x' + n })) });
     document.title = (t.title ? t.title + ' · ' : '') + art;
   } catch {}
 }
@@ -2543,7 +2913,7 @@ function msPos(force){
 if (MS) {
   const set = (n, f) => { try { MS.setActionHandler(n, f); } catch {} };
   set('play', () => { if (a.paused) doPP(); });
-  set('pause', () => { a.pause(); });
+  set('pause', () => { userPaused = true; a.pause(); });
   set('previoustrack', doPrev);
   set('nexttrack', doNext);
   set('seekbackward', null);   // seek-by-seconds buttons would replace the previous/next song buttons on the lock screen / notification
@@ -2552,9 +2922,11 @@ if (MS) {
   set('stop', () => { a.pause(); });
 }
 const SPIN = '<svg class="ppsp" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="12" cy="12" r="9" stroke-opacity=".25"/><path d="M12 3a9 9 0 019 9"/></svg>';
-const setPP = () => { const i = loading ? SPIN : ic(a.paused ? 'play' : 'pause'); $('pp').innerHTML = i; $('mpp').innerHTML = i; lyKick(); msState(); msPos(true); };
+const setPP = () => { const i = (loading || buffering) ? SPIN : ic(a.paused ? 'play' : 'pause'); $('pp').innerHTML = i; $('mpp').innerHTML = i; lyKick(); msState(); msPos(true); };
 const wire = el => {
   el.onplay = el.onpause = () => { if (el === a) { setPP(); actSave(true); queueStatus(); } };
+  el.onwaiting = () => { if (el === a && !loading && !el.paused) { buffering = true; stallAt = Date.now(); setPP(); } };
+  el.onplaying = el.oncanplay = () => { if (el === a && buffering) { buffering = false; setPP(); } };
   el.onended = () => {
     if (el !== a) return;
     /* a dropped connection can look like 'ended'. If we're far short of the song's real length, resume it instead of skipping */
@@ -2564,8 +2936,14 @@ const wire = el => {
     }
     repeat === 'one' ? (a.currentTime = 0, a.play()) : step(1, true);
   };
-  el.onerror = () => { if (el === a && el.src) toast(navigator.onLine ? 'Playback failed. Check that the server is running and try again.' : "You're offline · only downloaded songs can play", true); };
+  el.onerror = () => { if (el === a && el.src && !loading && current && isOnline()) {
+      if (errRetry.id !== current.id) errRetry = { id: current.id, n: 0 };
+      if (errRetry.n < 2) { errRetry.n++; return setTimeout(() => playCurrent(Math.max(a.currentTime - 0.5, 0)), 1500 * errRetry.n); }
+    }
+    if (el === a && el.src) toast(isOnline() ? 'Playback failed. Check that the server is running and try again.' : "You're offline · only downloaded songs can play", true); };
   el.ontimeupdate = () => {
+    if (el === a && buffering) { buffering = false; setPP(); }
+    if (el === a && !loading) { const n = Date.now(); if (n - posSaved > 5000) { posSaved = n; rememberLast(current, a.currentTime); } }
     if (el === a && !pending && !loading && npTab === 'lyrics') lyUpdate();
     if (el === a) msPos();
     if (el === a) actTick();
@@ -2579,7 +2957,19 @@ const wire = el => {
     }
   };
 };
+let stallAt = 0, posSaved = 0, wdT = -1, wdN = 0, errRetry = { id: null, n: 0 };
 wire(a); wire(standby);
+/* watchdog: if the song should be playing but time has stopped moving (slow / dropped connection), nudge it, then reload it from where it was */
+setInterval(() => {
+  if (!current || loading || userPaused || !a.src || a._tid !== current.id || a.paused || a.ended) { wdN = 0; return; }
+  const ct = a.currentTime;
+  if (Math.abs(ct - wdT) > 0.05) { wdT = ct; wdN = 0; return; }
+  wdN++;
+  if (!isOnline() && !dls.some(d => d.id === current.id)) return;
+  if (wdN === 3) { try { a.currentTime = ct + 0.01; a.play().catch(() => {}); } catch {} }          // ~6s stuck: gentle nudge
+  else if (wdN >= 6) { wdN = 0; toast('Slow connection · reconnecting…'); playCurrent(Math.max(ct - 0.5, 0)); }   // ~12s stuck: reload from here
+}, 2000);
+addEventListener('online', () => { if (current && !userPaused && a.src && a.paused && !loading && a._tid === current.id) a.play().catch(() => {}); });
 ['seek', 'mseek'].forEach(id => {
   $(id).oninput = () => { seeking = true; fillRange($(id)); };
   $(id).onchange = e => { if (loading) { resetSeek(); seeking = false; return; } const d = a.duration || 0; if (d) a.currentTime = e.target.value / 1000 * d; seeking = false; };
@@ -2613,14 +3003,14 @@ function syncLike(){
 }
 function updateNP(){
   const t = current; if (!t) return;
-  setImg($('npcover'), t, 800);
+  setImgProg($('npcover'), t, 160, 600);
   $('mtitle').textContent = t.title || ''; $('martist').innerHTML = artistLinks(t);
   $('npfrom').textContent = queueName || 'Queue';
   $('npAlbum').style.display = (t.album_id || t.album) ? '' : 'none';
   syncLike();
   if ($('npv').classList.contains('open')) renderQueue();
 }
-const qrow = (t, i, kind) => `<div class="qr ${kind === 'q' && i === qi ? 'cur' : ''}" data-i="${i}" data-kind="${kind}" data-id="${esc(t.id)}">
+const qrow = (t, i, kind) => `<div class="qr ${kind === 'q' && i === qi ? 'cur' : ''}${kind === 'q' && qEnd > qi && i > qi && i <= qEnd ? ' qd' : ''}" data-i="${i}" data-kind="${kind}" data-id="${esc(t.id)}">
   <div class="qt">${imgTag(t, 160)}<span class="qp">${ic('play', 18)}</span></div>
   <div class="qm"><b>${esc(t.title)}</b><span>${esc(t.artist)}</span></div><em>${t.duration ? fmt(t.duration) : ''}</em></div>`;
 function renderQueue(){
@@ -2628,7 +3018,8 @@ function renderQueue(){
   box.classList.toggle('lyr', npTab === 'lyrics'); $('lyhd').hidden = npTab !== 'lyrics';
   if (npTab === 'lyrics') return loadLyrics();
   if (npTab === 'related') return loadRelated();
-  box.innerHTML = queue.map((t, i) => qrow(t, i, 'q')).join('');
+  const hasQ = qEnd > qi && qi >= 0;
+  box.innerHTML = queue.map((t, i) => (hasQ && i === qi + 1 ? '<div class="qh">Queued</div>' : hasQ && i === qEnd + 1 ? `<div class="qh">Next from ${esc(queueName || 'queue')}</div>` : '') + qrow(t, i, 'q')).join('');
   const c = box.querySelector('.cur'); if (c) box.scrollTop = c.offsetTop;
 }
 async function loadRelated(){
@@ -2645,10 +3036,11 @@ async function loadRelated(){
 function toggleLike(t){
   const was = isLiked(t.id);
   liked = was ? liked.filter(l => l.id !== t.id) : [slim(t), ...liked];
+  if (!was) plStamp(LIKED_ID, [t.id]);
   if (was) acct.send('DELETE', '/isai/library/liked?key=' + enc(t.id));
   else acct.send('POST', '/isai/library/liked', { items: [slim(t)] });
   document.querySelectorAll(`[data-id="${t.id}"] [data-a="like"]`).forEach(x => x.classList.toggle('on', isLiked(t.id)));
-  if (view === 'liked') renderLiked();
+  if (view === 'liked') renderLiked(); else if (view === 'upl' && viewArg === LIKED_ID) renderUserPl(LIKED_ID);
   syncLike();
 }
 $('npq').onclick = e => {
@@ -2656,7 +3048,7 @@ $('npq').onclick = e => {
   if (ly) return lySeek(+ly.dataset.i);
   const r = e.target.closest('.qr'); if (!r) return;
   if (r.dataset.kind === 'r') return playFrom('related', +r.dataset.i, false);
-  qi = +r.dataset.i; playCurrent();
+  const ni = +r.dataset.i; if (ni < qi) qEnd = -1; qi = ni; playCurrent();
 };
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   const up = $('npr').classList.contains('up');
@@ -2702,6 +3094,105 @@ function dragOn(el, o){
   };
   el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
 }
+
+/* ---------- user queue: "Add to queue" ---------- */
+function addToQueue(t){
+  if (!t || !t.id) return;
+  if (!isOnline() && !dls.some(d => d.id === t.id)) return toast("You're offline · this song isn't downloaded", true);
+  if (!current || qi < 0 || !queue.length) {   // nothing playing yet: just start it
+    queue = [t]; queueName = ''; qi = 0; queueOwned = true; qEnd = -1;
+    setTab('queue', true); playCurrent(); toast('Nothing was playing · started this song');
+    return;
+  }
+  if (!queueOwned) { queue = queue.slice(); queueOwned = true; }   // never edit the playlist's own list
+  const pos = (qEnd > qi ? qEnd : qi) + 1;
+  queue.splice(pos, 0, t); qEnd = pos;
+  toast(`Added to queue · ${qEnd - qi} up next`);
+  if ($('npv').classList.contains('open') && npTab === 'queue') renderQueue();
+  schedulePreload(600);
+}
+const songLink = t => 'https://music.youtube.com/watch?v=' + encodeURIComponent(t.id);
+async function shareSong(t){
+  const data = { title: t.title, text: `${t.title}${t.artist ? ' · ' + t.artist : ''}`, url: songLink(t) };
+  if (navigator.share) { try { await navigator.share(data); } catch {} return; }
+  try { await navigator.clipboard.writeText(data.url); toast('Link copied'); } catch { toast(data.url); }
+}
+function pickArtist(t){
+  const as = artistsOf(t);
+  if (as.length < 2) return as[0] ? openArtist(as[0].id, as[0].name) : toast('No artist info for this track', true);
+  const sh = openModal(`<h3>Go to artist</h3>${as.map((a, i) => `<button class="plr act" data-i="${i}"><span class="plc">${ic('user', 20)}</span><span class="qm"><b>${esc(a.name)}</b></span></button>`).join('')}`);
+  sh.onclick = e => { const r = e.target.closest('[data-i]'); if (!r) return; const a = as[+r.dataset.i]; closeModal(); openArtist(a.id, a.name); };
+}
+function openSongMenu(t, o = {}){
+  const items = [
+    ['queue', 'queue', 'Add to queue'],
+    ['pl', 'plus', 'Add to playlist'],
+    o.rm ? ['rm', 'minusc', 'Remove from playlist', true] : null,
+    ['goq', 'list', 'Go to queue'],
+    (t.album_id || t.album) ? ['album', 'album', 'Go to album'] : null,
+    artistsOf(t).length ? ['artist', 'user', 'Go to artist'] : null,
+    ['share', 'share', 'Share'],
+    ['dl', 'dl', 'Download']
+  ].filter(Boolean);
+  const sh = openModal(`<div class="smh"><img src="${esc(cov(t, 120))}" alt=""><div class="qm"><b>${esc(t.title)}</b><span>${esc(t.artist || '')}</span></div></div>`
+    + items.map(([k, icn, label, danger]) => `<button class="plr act${danger ? ' danger' : ''}" data-k="${k}"><span class="plc">${ic(icn, 20)}</span><span class="qm"><b>${label}</b></span></button>`).join(''));
+  sh.onclick = e => {
+    const r = e.target.closest('[data-k]'); if (!r) return;
+    const k = r.dataset.k; closeModal();
+    if (k === 'queue') addToQueue(t);
+    else if (k === 'pl') openAddModal([t]);
+    else if (k === 'rm') removeFromPl(t);
+    else if (k === 'goq') { if (!current) return toast('Nothing is playing yet. Play a song or add one to the queue.'); setTab('queue'); openNP(); }
+    else if (k === 'album') openAlbumOf(t);
+    else if (k === 'artist') pickArtist(t);
+    else if (k === 'share') shareSong(t);
+    else if (k === 'dl') download(t, null);
+  };
+}
+/* swipe a song row to the right = add it to the queue (touch) */
+(function(){
+  let g = null;
+  const finish = (row, ok) => {
+    row.classList.remove('swiping'); row.classList.add('swiback'); row.style.removeProperty('--sw');
+    const q = row.querySelector('.swq'); if (q && ok) { q.classList.add('done'); q.innerHTML = ic('check', 20); }
+    setTimeout(() => { row.classList.remove('swiback'); const x = row.querySelector('.swq'); if (x) x.remove(); }, ok ? 650 : 280);
+  };
+  document.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' || e.button > 0 || g) return;
+    const row = e.target.closest('.lrow'); if (!row || e.target.closest('button,input')) return;
+    g = { id: e.pointerId, x: e.clientX, y: e.clientY, t: Date.now(), axis: null, row };
+  });
+  document.addEventListener('pointermove', e => {
+    if (!g || e.pointerId !== g.id) return;
+    const dx = e.clientX - g.x, dy = e.clientY - g.y;
+    if (!g.axis) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      if (Math.abs(dy) >= Math.abs(dx) || dx < 0) { g = null; return; }
+      g.axis = 'x'; g.row.classList.remove('swiback'); g.row.classList.add('swiping');
+      const q = document.createElement('span'); q.className = 'swq'; q.innerHTML = ic('queue', 20); g.row.appendChild(q);
+      try { g.row.setPointerCapture(e.pointerId); } catch {}
+    }
+    const d = Math.min(Math.max(dx, 0) * .6, 96), p = Math.min(1, d / 54);
+    g.armed = p >= 1;
+    g.row.style.setProperty('--sw', d + 'px'); g.row.style.setProperty('--sp', p);
+    g.row.classList.toggle('armed', g.armed);
+  });
+  const up = e => {
+    if (!g || e.pointerId !== g.id) return;
+    const G = g; g = null;
+    if (!G.axis) return;
+    noClickUntil = Date.now() + 350;
+    const dx = e.clientX - G.x, fast = dx / Math.max(Date.now() - G.t, 1) > .5;
+    const ok = e.type === 'pointerup' && (G.armed || (fast && dx > 40));
+    G.row.classList.remove('armed');
+    if (ok) {
+      const t = (lists[listKey] || [])[G.row.dataset.i];
+      if (t) { addToQueue(t); try { navigator.vibrate && navigator.vibrate(12); } catch {} }
+    }
+    finish(G.row, ok);
+  };
+  document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
+})();
 function snapBack(el){
   el.style.transition = 'transform .28s var(--ease), opacity .28s var(--ease)'; el.style.transform = ''; el.style.opacity = '';
   setTimeout(() => { el.style.transition = ''; }, 320);
@@ -2940,7 +3431,7 @@ async function ensureExtras(){
   await loadExtras();
   const todo = missingExtras();
   if (!todo.length) return;
-  if (!window.__unlocked || !navigator.onLine) return;
+  if (!window.__unlocked || !isOnline()) return;
   exMig.busy = true; exMig.on = todo.length > 1; exMig.total = todo.length; exMig.done = 0;
   if (exMig.on && view === 'downloads') renderDownloads();
   const q = todo.slice(), swapped = [];
@@ -3083,7 +3574,7 @@ function renderDownloads(){
   let rows = '';
   if (!dlsReady) rows = '<p class="qmsg">Loading…</p>';
   else if (!items.length && q) rows = `<p class="qmsg">No downloads match “${esc(dlQ)}”.</p>`;
-  else if (!items.length && !navigator.onLine) rows = '<div class="offmsg"><b>You\'re offline</b>You have no downloaded songs yet. Reconnect and tap the download icon on any song to keep it for offline listening.</div>';
+  else if (!items.length && !isOnline()) rows = '<div class="offmsg"><b>You\'re offline</b>You have no downloaded songs yet. Reconnect and tap the download icon on any song to keep it for offline listening.</div>';
   else if (!items.length) rows = '<p class="qmsg">Nothing downloaded yet. Tap the download icon on any song and it will be saved here for offline playback.</p>';
   else if (q) rows = items.map(dlrow).join('');
   else if (mode === 'home') {
@@ -3160,17 +3651,19 @@ function renderDownloads(){
   $('main').innerHTML = `<div class="pg">${updBanner}<div class="dlh"><h1 class="t" style="margin:6px 0 4px">Downloads</h1>
       <div class="dlhb"><button class="btn ghost" id="dlNew" data-dlnew hidden>↻ Refresh list</button><button class="btn ghost" id="dlProg" data-dlq>See progress</button>${items.length ? '<button class="btn ghost" id="dlClear">Delete all</button>' : ''}</div></div>
     <p class="dlsub" id="dlsub">${dls.length} song${dls.length === 1 ? '' : 's'}${total ? ' · ' + fmtSize(total) : ''} stored on this device</p>
-    ${navigator.onLine ? '' : '<div class="offb"><i></i>You\'re offline · playing from your downloads</div>'}
+    <div class="dlmode glass"><div><b>Offline mode</b><span>Play only your downloads and stop all network use</span></div><button class="sw" id="dlOff" role="switch" aria-label="Offline mode" aria-checked="${MODE.off}"></button></div>
+    ${isOnline() ? '' : `<div class="offb"><i></i>${MODE.off ? 'Offline mode' : 'You\'re offline'} · playing from your downloads</div>`}
     <label class="dlq">${ic('search', 18)}<input id="dlq" placeholder="Search your downloads" autocomplete="off" value="${esc(dlQ)}"></label>
     <div class="dltabs">${Object.entries(dlSorts).map(([k, v]) => `<button class="pill ${k === mode && !q ? 'on' : ''}" data-dlsort="${k}">${v}</button>`).join('')}</div>
     <div id="dlSum"></div>
     ${rows}</div>`;
+  $('dlOff').onclick = () => setOffMode(!MODE.off);
   const dq = $('dlq');
   dq.oninput = () => { dlQ = dq.value; dlFocus = true; renderDownloads(); };
   if (dlFocus) { dq.focus(); dq.setSelectionRange(dq.value.length, dq.value.length); dlFocus = false; }
   const c = $('dlClear');
   if (c) c.onclick = async () => {
-    if (!confirm('Delete all downloaded songs from this device?')) return;
+    if (!(await askConfirm({ title: 'Delete all downloads?', msg: 'All downloaded songs will be removed from this device.', ok: 'Delete all', danger: true }))) return;
     try { await idb.clear(); dropAllExtras(); dls = []; for (const k in artProf) delete artProf[k]; for (const k in dlPlaylists) delete dlPlaylists[k]; saveDlPlaylists(); } catch (e) { toast(e.message, true); }
     renderDownloads();
   };
@@ -3229,7 +3722,7 @@ async function ensureArtistProfiles(){
     if (!artMigDone) { artMigDone = true; store.set('artmig', '1'); if (view === 'downloads') renderDownloads(); }
     return;
   }
-  if (!window.__unlocked || !navigator.onLine) return;
+  if (!window.__unlocked || !isOnline()) return;
   const migrating = !artMigDone;
   artMig.busy = true; artMig.on = migrating; artMig.total = todo.length; artMig.done = 0;
   if (migrating && view === 'downloads') renderDownloads();
@@ -3295,12 +3788,14 @@ function actSave(force){
   lsaved = n; ldirty = false; pushTime();
 }
 function logPlay(t, ts){
+  if (MODE.inc) return;
   ltracks[t.id] = slim(t);
   lplays.push([t.id, ts]);
   if (lplays.length > 20000) lplays = lplays.slice(-20000);
   acct.send('POST', '/isai/plays', { track: slim(t), ts });
 }
 function actTick(){
+  if (MODE.inc) return;                                              // Incognito: no plays, no listening time
   const t = current; if (!t || !a || a.paused || pending) return;
   const ct = a.currentTime;
   if (sess.id !== t.id || (sess.logged && ct + 2 < sess.last)) { actSave(true); sess = { id: t.id, sec: 0, logged: false, last: ct }; }
@@ -3428,11 +3923,11 @@ function renderActivity(){
     ${histTotal > hist.length ? '<button class="pill amore" data-actmore="hist">Show more</button>' : ''}</div>`;
   markPlaying();
 }
-document.addEventListener('click', e => {
+document.addEventListener('click', async e => {
   const r = e.target.closest('[data-actr]'); if (r) { actRange = r.dataset.actr; store.set('actrange', actRange); return renderActivity(); }
   const m = e.target.closest('[data-actmore]'); if (m) { if (m.dataset.actmore === 'top') actTopN += 15; else actHistN += 30; return renderActivity(); }
   if (e.target.closest('#actClr')) {
-    if (!confirm('Clear all listening activity (history, top artists and listening time)?')) return;
+    if (!(await askConfirm({ title: 'Clear listening activity?', msg: 'This clears your history, top artists and listening time.', ok: 'Clear', danger: true }))) return;
     lplays = []; ltracks = {}; ltime = { d: {}, h: new Array(24).fill(0) }; sess = { id: null, sec: 0, logged: false, last: 0 };
     acct.send('DELETE', '/isai/activity'); ltimeSent = blankTime(); actLoaded = true;
     return renderActivity();
@@ -3478,6 +3973,7 @@ document.addEventListener('click', e => {
     if (b.dataset.a === 'save') { saveWithExtras(t).catch(err => toast(err.message, true)); return; }
     if (b.dataset.a === 'pl') return openAddModal([t]);
     if (b.dataset.a === 'rmpl') return removeFromPl(t);
+    if (b.dataset.a === 'more') return openSongMenu(t, { rm: !!b.dataset.rm });
     return b.dataset.a === 'dl' ? download(t, b) : toggleLike(t);
   }
   const c = e.target.closest('.card'); if (!c) return;
@@ -3497,8 +3993,9 @@ const PH = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3
 const uid = () => 'pl' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 function addTracks(pl, tracks){
   const have = new Set(pl.tracks.map(t => t.id)); let n = 0;
-  for (const t of tracks) if (t && t.id && !have.has(t.id)) { have.add(t.id); pl.tracks.push(slim(t)); n++; }
-  if (n) savePl();
+  const fresh = [];
+  for (const t of tracks) if (t && t.id && !have.has(t.id)) { have.add(t.id); pl.tracks.push(slim(t)); fresh.push(t.id); n++; }
+  if (n) { plStamp(pl.id, fresh); savePl(); }
   return n;
 }
 function createPlaylist(name, tracks = [], extra = {}){
@@ -3507,7 +4004,45 @@ function createPlaylist(name, tracks = [], extra = {}){
   return p;
 }
 const plCover = (p, s = 340) => p.thumb ? cov({ id: p.radio || p.id, kind: 'artist', thumbnail: p.thumb }, s) : p.tracks[0] ? cov({ id: p.tracks[0].id, thumbnail: p.tracks[0].thumbnail }, s) : PH;
-const plCards = () => playlists.map(p => ({ kind: 'uplaylist', id: p.id, title: p.name, artist: `${p.tracks.length} song${p.tracks.length === 1 ? '' : 's'}${p.visibility && p.visibility !== 'private' ? ' · ' + VIS[p.visibility][0] : ''}`, thumbnail: plCover(p) }));
+/* ---------- Liked songs as a pinned playlist + playlist sorting ---------- */
+const LIKED_ID = '__liked';
+const LIKED_COVER = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7c5cff"/><stop offset="1" stop-color="#d946a8"/></linearGradient></defs><rect width="100" height="100" fill="url(#g)"/><path fill="#fff" transform="translate(26 27) scale(2)" d="M12 21l-1.5-1.3C5.4 15.1 2 12 2 8.5 2 5.4 4.4 3 7.5 3c1.7 0 3.4.8 4.5 2.1C13.1 3.8 14.8 3 16.5 3 19.6 3 22 5.4 22 8.5c0 3.5-3.4 6.6-8.5 11.2z"/></svg>');
+const likedPl = () => ({ id: LIKED_ID, name: 'Liked songs', tracks: liked, virtual: true, thumb: LIKED_COVER });
+const PLSORTS = { custom: 'Custom order', title: 'Title', artist: 'Artist', album: 'Album', recent: 'Recently added' };
+const plSortGet = id => { try { return (JSON.parse(store.get('plsort', '{}')) || {})[id] || 'custom'; } catch { return 'custom'; } };
+const plSortSet = (id, m) => { let o = {}; try { o = JSON.parse(store.get('plsort', '{}')) || {}; } catch {} if (m === 'custom') delete o[id]; else o[id] = m; store.set('plsort', JSON.stringify(o)); };
+/* when each song was added (kept on this device; older songs fall back to their position in the list) */
+let plAdded = {}; try { plAdded = JSON.parse(localStorage.getItem('pladded') || '{}') || {}; } catch {}
+function plStamp(pid, ids){
+  const m = plAdded[pid] || (plAdded[pid] = {}), now = Date.now();
+  ids.forEach(i => { m[i] = now; });
+  try { localStorage.setItem('pladded', JSON.stringify(plAdded)); } catch {}
+}
+function plSorted(pl, mode){
+  const src = pl.tracks, n = src.length;
+  if (mode === 'custom' || n < 2) return src;
+  const idx = new Map(src.map((t, i) => [t, i]));
+  const cmp = (a, b) => String(a).localeCompare(String(b), undefined, { sensitivity: 'base', numeric: true });
+  const art = t => t.artist || (Array.isArray(t.artists) ? t.artists.map(x => typeof x === 'string' ? x : (x && x.name) || '').join(', ') : '');
+  const by = f => (x, y) => { const a = f(x), b = f(y); if (!a !== !b) return a ? -1 : 1; return cmp(a, b) || cmp(x.title || '', y.title || '') || idx.get(x) - idx.get(y); };
+  const out = src.slice();
+  if (mode === 'title') out.sort(by(t => t.title || ''));
+  else if (mode === 'artist') out.sort(by(art));
+  else if (mode === 'album') out.sort(by(t => t.album || ''));
+  else if (mode === 'recent') {
+    const m = plAdded[pl.id] || {}, pos = i => pl.virtual ? n - i : i;   // Liked is stored newest-first, playlists are appended
+    out.sort((x, y) => ((m[y.id] || 0) - (m[x.id] || 0)) || (pos(idx.get(y)) - pos(idx.get(x))));
+  }
+  return out;
+}
+const plSortBar = (id, mode) => `<div class="plsort"><button class="sortb" id="plSort" aria-haspopup="dialog" title="Sort songs">${ic('sort', 16)}<span>${PLSORTS[mode]}</span>${ic('chev', 12)}</button></div>`;
+function openPlSort(id){
+  const cur = plSortGet(id);
+  const sh = openModal(`<h3>Sort by</h3>${Object.entries(PLSORTS).map(([k, v]) => `<button class="plr${k === cur ? ' sel' : ''}" data-sort="${k}"><span class="qm"><b>${v}</b></span>${k === cur ? `<span class="ck">${ic('check', 20)}</span>` : ''}</button>`).join('')}<div class="mbtns"><button class="btn ghost" data-mc>Cancel</button></div>`);
+  sh.onclick = e => { const b = e.target.closest('[data-sort]'); if (!b) return; plSortSet(id, b.dataset.sort); closeModal(); renderUserPl(id); };
+}
+const likedCard = () => ({ kind: 'uplaylist', id: LIKED_ID, title: 'Liked songs', artist: `Pinned · ${liked.length} song${liked.length === 1 ? '' : 's'}`, thumbnail: LIKED_COVER });
+const plCards = () => [likedCard()].concat(playlists.map(p => ({ kind: 'uplaylist', id: p.id, title: p.name, artist: `${p.tracks.length} song${p.tracks.length === 1 ? '' : 's'}${p.visibility && p.visibility !== 'private' ? ' · ' + VIS[p.visibility][0] : ''}`, thumbnail: plCover(p) })));
 
 /* ---------- username + playlist sharing ---------- */
 const VIS = {
@@ -3569,7 +4104,7 @@ function paintShare(pl, msg){
     }
     if (e.target.closest('#shNative')) { try { await navigator.share({ title: pl.name, text: pl.name + ' on Isai', url: shareUrl(pl) }); } catch {} return; }
     if (e.target.closest('#shNew')) {
-      if (!confirm('Reset the link? The current link will stop working.')) return;
+      if (!(await askConfirm({ title: 'Reset link?', msg: 'The current link will stop working.', ok: 'Reset link', danger: true }))) return;
       const r = await acct.now('POST', `/isai/playlists/${enc(pl.id)}/new-link`);
       if (r.ok) { pl.slug = r.d.slug; toast('New link created'); paintShare(pl); }
       else paintShare(pl, (r.d && r.d.error) || "Couldn't reset the link.");
@@ -3750,8 +4285,9 @@ function paintProfile(){
     ${(!status && !plSec && !statSec) ? '<div class="pempty">Nothing shared yet.</div>' : ''}</div>`;
   hydrate(main);
 }
-function statusHtml(){
-  const { d, own } = profCur, st = d.status;
+const stKey = st => st ? st.track.id + '|' + (st.playing ? 'on' : 'off|' + Math.floor((st.updated || 0) / 60000) + '|' + Math.floor(Date.now() / 60000)) : '';
+function statusBody(){
+  const { d } = profCur, st = d.status;
   let body;
   if (!st) body = '<div class="pempty">Nothing yet. Play a song and it shows up here.</div>';
   else {
@@ -3761,8 +4297,42 @@ function statusHtml(){
       <b>${esc(t.title)}</b><span>${esc(artistsOf(t).map(a => a.name).join(', '))}${t.album ? ' · ' + esc(t.album) : ''}</span></div>
       </div>`;
   }
-  return `<section class="psec"><div class="psh"><h2>Listening</h2>${visBtn('status')}</div>${body}</section>`;
+  return body;
 }
+function statusHtml(){
+  return `<section class="psec" id="pStatus" data-k="${esc(stKey(profCur.d.status))}"><div class="psh"><h2>Listening</h2>${visBtn('status')}</div><div class="sbody">${statusBody()}</div></section>`;
+}
+/* repaint only the Listening card when something changed (no full profile reload) */
+function refreshStatus(){
+  const sec = $('pStatus'); if (!sec || !profCur) return;
+  const k = stKey(profCur.d.status); if (sec.dataset.k === k) return;
+  const prevTrack = sec.dataset.k.split('|')[0], same = prevTrack === k.split('|')[0];
+  sec.dataset.k = k;
+  const b = sec.querySelector('.sbody'); if (!b) return;
+  b.innerHTML = statusBody(); hydrate(b);
+  b.classList.remove('swap', 'tick'); void b.offsetWidth; b.classList.add(same ? 'tick' : 'swap');
+}
+function ownLiveStatus(){
+  if (document.hidden || !profCur || !profCur.own || !$('pStatus') || typeof current === 'undefined' || !current) return;
+  const playing = !!(a && !a.paused && !loading), st = profCur.d.status;
+  if (st && st.track && st.track.id === current.id && !!st.playing === playing) { if (playing) st.updated = Date.now(); return; }
+  profCur.d.status = { track: slim(current), playing, updated: Date.now() };
+  refreshStatus();
+}
+let _stPoll = 0;
+async function pollStatus(){
+  if (document.hidden || _stPoll || !$('pStatus') || !profCur) return;
+  if (profCur.own && current) return;                      // own playback is tracked locally
+  _stPoll = 1; const uname = profCur.uname;
+  try {
+    const r = await acct.now('GET', '/isai/profile/' + enc(uname));
+    if (r.ok && profCur && profCur.uname === uname && $('pStatus')) { profCur.d.status = r.d.status; refreshStatus(); }
+  } catch {}
+  _stPoll = 0;
+}
+setInterval(ownLiveStatus, 1000);
+setInterval(pollStatus, 8000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { ownLiveStatus(); pollStatus(); } });
 function profPlCards(pls){
   return pls.map(p => ({ kind: 'sharedpl', id: p.slug, title: p.name, artist: plural(p.count, 'song'),
     thumbnail: p.thumb ? p.thumb : p.cover ? cov({ id: p.cover.id, thumbnail: p.cover.thumbnail }, 340) : PH }));
@@ -3895,7 +4465,7 @@ async function friendAction(kind){
   if (kind === 'add') r = await acct.now('POST', '/isai/friends/requests', { username: c.uname });
   else if (kind === 'cancel' || kind === 'decline') r = await acct.now('DELETE', '/isai/friends/requests/' + d.request_id);
   else if (kind === 'accept') r = await acct.now('POST', `/isai/friends/requests/${d.request_id}/accept`);
-  else if (kind === 'remove') { if (!confirm(`Remove @${c.uname} from your friends?`)) return; r = await acct.now('DELETE', '/isai/friends/' + enc(c.uname)); }
+  else if (kind === 'remove') { if (!(await askConfirm({ title: 'Remove friend?', msg: `Remove @${c.uname} from your friends?`, ok: 'Remove', danger: true }))) return; r = await acct.now('DELETE', '/isai/friends/' + enc(c.uname)); }
   if (!r) return;
   if (!r.ok) return toast((r.d && r.d.error) || 'Something went wrong', true);
   if (kind === 'add') toast(r.d.state === 'friends' ? `You and @${c.uname} are now friends` : 'Friend request sent');
@@ -4071,16 +4641,47 @@ let stT = 0;
 function queueStatus(){
   clearTimeout(stT);
   stT = setTimeout(() => {
-    if (!acctReady || !current) return;
+    if (!acctReady || !current || MODE.inc) return;
     acct.sendLatest('POST', '/isai/status', { track: slim(current), playing: !!(a && !a.paused && !loading) });
   }, 1500);
 }
 
-const qaBtns = (t, rm) => `<span class="qa"><button data-a="like" class="${isLiked(t.id) ? 'on' : ''}" title="Like">${ic('heart', 18)}</button>${rm ? `<button data-a="rmpl" title="Remove from playlist">${ic('x', 18)}</button>` : `<button data-a="pl" title="Add to playlist">${ic('plus', 18)}</button>`}<button data-a="dl" title="Download">${ic('dl', 18)}</button></span>`;
+const qaBtns = (t, rm) => `<span class="qa"><button data-a="like" class="${isLiked(t.id) ? 'on' : ''}" title="Like">${ic('heart', 18)}</button>${rm ? `<button data-a="more" data-rm="1" title="More options" aria-label="More options">${ic('dots', 18)}</button>` : `<button data-a="pl" title="Add to playlist">${ic('plus', 18)}</button><button data-a="more" title="More options" aria-label="More options">${ic('dots', 18)}</button>`}<button data-a="dl" title="Download">${ic('dl', 18)}</button></span>`;
 
 /* ---------- modal ---------- */
 function openModal(html){ const m = $('modal'); clearTimeout(m._ct); m.classList.remove('closing'); delete m.dataset.lock; m.querySelector('.msheet').innerHTML = html; m.hidden = false; return m.querySelector('.msheet'); }
 function closeModal(){ const m = $('modal'); if (m.dataset.lock || m.hidden || m.classList.contains('closing')) return; m.classList.add('closing'); m._ct = setTimeout(() => { m.hidden = true; m.classList.remove('closing'); }, 200); }
+/* on-screen confirm / picker (replaces native confirm() and <select>) */
+let _dlgRes = null;
+function _dlgClose(v){
+  const d = $('dlg'); if (d.hidden || d.classList.contains('closing')) return;
+  const r = _dlgRes; _dlgRes = null;
+  d.classList.add('closing'); clearTimeout(d._ct);
+  d._ct = setTimeout(() => { d.hidden = true; d.classList.remove('closing'); }, 180);
+  if (r) r(v);
+}
+function _dlgOpen(html, cls){
+  if (_dlgRes) { const r = _dlgRes; _dlgRes = null; r(null); }
+  const d = $('dlg'), sh = d.querySelector('.dsheet'); clearTimeout(d._ct);
+  d.classList.remove('closing'); sh.className = 'dsheet glass' + (cls ? ' ' + cls : ''); sh.innerHTML = html; d.hidden = false;
+  return new Promise(res => { _dlgRes = res; });
+}
+function askConfirm({ title, msg = '', ok = 'Confirm', cancel = 'Cancel', danger = false }){
+  const p = _dlgOpen(`<h3>${esc(title)}</h3>${msg ? `<p>${esc(msg)}</p>` : ''}<div class="dbtns"><button class="btn ghost" data-dno>${esc(cancel)}</button><button class="btn${danger ? ' danger' : ''}" data-dyes>${esc(ok)}</button></div>`);
+  const b = $('dlg').querySelector('[data-dyes]'); if (b) b.focus();
+  return p.then(v => v === true);
+}
+function pickDialog({ title, options, value }){
+  const p = _dlgOpen(`<h3>${esc(title)}</h3>` + options.map(o => `<button class="dopt${String(o.v) === String(value) ? ' on' : ''}" data-dv="${esc(String(o.v))}"><span>${esc(o.label)}</span>${String(o.v) === String(value) ? ic('check', 18) : ''}</button>`).join(''), 'pick');
+  return p;
+}
+$('dlg').addEventListener('click', e => {
+  if (e.target.id === 'dlg') return _dlgClose(null);
+  if (e.target.closest('[data-dno]')) return _dlgClose(false);
+  if (e.target.closest('[data-dyes]')) return _dlgClose(true);
+  const o = e.target.closest('[data-dv]'); if (o) _dlgClose(o.dataset.dv);
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('dlg').hidden) { e.stopImmediatePropagation(); _dlgClose(null); } }, true);
 function promptName({ title, value = '', cta, onOk }){
   openModal(`<h3>${esc(title)}</h3><input id="mIn" class="minp" maxlength="80" value="${esc(value)}" placeholder="Playlist name" autocomplete="off"><div class="mbtns"><button class="btn ghost" data-mc>Cancel</button><button class="btn" id="mOk">${esc(cta)}</button></div>`);
   const inp = $('mIn'); inp.focus(); inp.select();
@@ -4257,7 +4858,7 @@ async function ytmConnect(run){
 async function ytmUpload(pl){
   const ids = (pl.tracks || []).map(t => t.id).filter(Boolean);
   if (!ids.length) return toast('Nothing to upload yet', true);
-  if (pl.ytmId && !confirm(`"${pl.name}" was already uploaded to YouTube Music. Upload another copy?`)) return;
+  if (pl.ytmId && !(await askConfirm({ title: 'Upload another copy?', msg: `"${pl.name}" was already uploaded to YouTube Music.`, ok: 'Upload' }))) return;
   const run = ++spRun;
   const msg = (h, body, btns = spClose) => spSet(run, `<h3>${h}</h3>${body}<div class="mbtns">${btns}</div>`);
   const link = u => `<a class="btn" href="${esc(u)}" target="_blank" rel="noopener">Open in YouTube Music</a>`;
@@ -4365,9 +4966,10 @@ function bindReorder(pl){
   box.onpointerup = end; box.onpointercancel = end;
 }
 function renderUserPl(id){
-  const pl = playlists.find(p => p.id === id);
+  const pl = id === LIKED_ID ? likedPl() : playlists.find(p => p.id === id);
   if (!pl) { toast('Playlist not found', true); return show('liked'); }
-  const key = 'upl_' + id, tracks = pl.tracks;
+  const mode = plReorder === id ? 'custom' : plSortGet(id), key = 'upl_' + id, tracks = plSorted(pl, mode);
+  const dlOpt = pl.virtual ? undefined : { id: pl.id, label: pl.name };
   lists[key] = tracks; names[key] = pl.name; listKey = key; pageEnt = null;
   const total = tracks.reduce((s, t) => s + (t.duration || 0), 0);
   const meta = `${tracks.length} song${tracks.length === 1 ? '' : 's'}` + (total ? ` • ${fmtMin(total)}` : '');
@@ -4376,33 +4978,34 @@ function renderUserPl(id){
   $('main').innerHTML = `<div class="bkrow">${backBtn()}</div>
     <div class="alb"><aside class="alb-l">${cover}
       <h1>${esc(pl.name)}</h1>
-      <p class="plby">${visPill(pl.visibility || 'private')}${acctName ? ` by <a data-uname="${esc(acctName)}">@${esc(acctName)}</a>` : ''}</p><p>${meta}</p>
+      <p class="plby">${pl.virtual ? '' : visPill(pl.visibility || 'private')}${acctName ? ` by <a data-uname="${esc(acctName)}">@${esc(acctName)}</a>` : ''}</p><p>${meta}</p>
       <div class="aact">
-        <button class="rb sm" id="uShare" title="Share">${ic('share', 18)}</button>
+        ${pl.virtual ? '' : `<button class="rb sm" id="uShare" title="Share">${ic('share', 18)}</button>`}
         <button class="rb sm" id="uDl" title="Download all">${ic('dl', 18)}</button>
         ${tracks.length ? `<button class="rb big" id="lPlay" title="Play">${ic('play', 28)}<span class="lbl">Play</span></button>` : ''}
-        <button class="rb sm" id="aMenu" title="More">${ic('dots', 18)}</button>
+        ${pl.virtual && !tracks.length ? '' : `<button class="rb sm" id="aMenu" title="More">${ic('dots', 18)}</button>
         <div class="menu glass" id="amenu" hidden>
-          ${tracks.length ? '<button data-m="shuffle">Shuffle play</button><button data-m="dlall">Download all</button>' : ''}${tracks.length > 1 ? '<button data-m="reorder">Reorder songs</button>' : ''}<button data-m="share">Share…</button><button data-m="rename">Rename</button>${pl.srcId ? '<button data-m="sync">Sync from YouTube Music</button>' : ''}<button data-m="find">Find songs to add</button><button data-m="del">Delete playlist</button>
-        </div>
+          ${tracks.length ? '<button data-m="shuffle">Shuffle play</button><button data-m="dlall">Download all</button>' : ''}${pl.virtual ? '' : `${tracks.length > 1 ? '<button data-m="reorder">Reorder songs</button>' : ''}<button data-m="share">Share…</button><button data-m="rename">Rename</button>${pl.srcId ? '<button data-m="sync">Sync from YouTube Music</button>' : ''}<button data-m="find">Find songs to add</button><button data-m="del">Delete playlist</button>`}
+        </div>`}
       </div>
       </aside>
-      <div class="alb-r">${plReorder === id ? `<div class="robar"><span>Drag the handle or use the arrows</span><button class="btn" id="roDone">Done</button></div><div class="tl" id="roList">${roRows(tracks)}</div></div></div>` : `<div class="tl">${tracks.length ? tracks.map((t, i) => trow(t, i, true, true)).join('') : '<p class="qmsg">This playlist is empty. Tap the + button on any song to add it here, or use Find songs to add.</p>'}</div>`}</div></div>`;
+      <div class="alb-r">${plReorder === id ? `<div class="robar"><span>Drag the handle or use the arrows</span><button class="btn" id="roDone">Done</button></div><div class="tl" id="roList">${roRows(tracks)}</div></div></div>` : `${tracks.length > 1 ? plSortBar(id, mode) : ''}<div class="tl">${tracks.length ? tracks.map((t, i) => trow(t, i, true, !pl.virtual)).join('') : `<p class="qmsg">${pl.virtual ? 'Nothing here yet. Tap the heart on any song to add it to Liked songs.' : 'This playlist is empty. Tap the + button on any song to add it here, or use Find songs to add.'}</p>`}</div>`}</div></div>`;
   hydrate($('main')); bindPlay(key, tracks.length);
-  $('uShare').onclick = () => openShare(pl);
-  $('uDl').onclick = () => tracks.length ? downloadAll(tracks, pl.name, { id: pl.id, label: pl.name }) : toast('Nothing to download yet');
-  $('aMenu').onclick = e => { e.stopPropagation(); toggleAMenu(); };
-  $('amenu').onclick = e => {
+  if ($('uShare')) $('uShare').onclick = () => openShare(pl);
+  if ($('plSort')) $('plSort').onclick = () => openPlSort(id);
+  $('uDl').onclick = () => tracks.length ? downloadAll(tracks, pl.name, dlOpt) : toast('Nothing to download yet');
+  if ($('aMenu')) $('aMenu').onclick = e => { e.stopPropagation(); toggleAMenu(); };
+  if ($('amenu')) $('amenu').onclick = async e => {
     const m = e.target.closest('[data-m]'); if (!m) return; $('amenu').hidden = true;
     const k = m.dataset.m;
     if (k === 'shuffle') { setShuffle(true); playFrom(key, Math.floor(Math.random() * tracks.length), false); }
-    else if (k === 'dlall') downloadAll(tracks, pl.name, { id: pl.id, label: pl.name });
+    else if (k === 'dlall') downloadAll(tracks, pl.name, dlOpt);
     else if (k === 'share') openShare(pl);
     else if (k === 'rename') promptName({ title: 'Rename playlist', value: pl.name, cta: 'Save', onOk: v => { pl.name = v; savePl(); renderUserPl(id); } });
     else if (k === 'reorder') { plReorder = id; renderUserPl(id); }
     else if (k === 'sync') syncPl(pl);
     else if (k === 'find') show('search');
-    else if (k === 'del' && confirm(`Delete "${pl.name}"?`)) { playlists = playlists.filter(p => p.id !== id); savePl(); if (dlPlaylists[id]) { delete dlPlaylists[id]; saveDlPlaylists(); } toast('Playlist deleted'); goBack(); }
+    else if (k === 'del') { if (!(await askConfirm({ title: 'Delete playlist?', msg: `"${pl.name}" will be permanently deleted.`, ok: 'Delete', danger: true }))) return; playlists = playlists.filter(p => p.id !== id); savePl(); if (dlPlaylists[id]) { delete dlPlaylists[id]; saveDlPlaylists(); } toast('Playlist deleted'); goBack(); }
   };
   if (plReorder === id) { bindReorder(pl); $('roDone').onclick = () => { plReorder = null; renderUserPl(id); }; }
   if (tracks[0]) tintFrom(tracks[0]);
@@ -5062,11 +5665,12 @@ updateInstallBtn();
     hideLock();
     if (started) return;
     started = true;
-    const go = () => show(navigator.onLine ? 'home' : 'downloads');
-    if (navigator.onLine) {
-      $('main').innerHTML = '<p class="qmsg" style="padding:56px 24px;text-align:center">Loading your library…</p>';
-      initAccount().finally(() => { go(); openDeepLink(); });
-    } else go();
+    const go = () => show(isOnline() ? 'home' : 'downloads');
+    if (isOnline()) {
+      go();   // never make the user wait for the account on a slow connection
+      initAccount().finally(() => { refreshAccountView(); openDeepLink(); restoreLast(); });
+    } else { go(); restoreLast(); }
+    setTimeout(maybeShowNotice, 700);
     loadArtProfiles().then(() => ensureArtistProfiles());
     loadExtras().then(() => ensureExtras());
   }
@@ -5146,6 +5750,7 @@ updateInstallBtn();
     w.style.transform = `scale(${cw / r.width}, ${ch / r.height})`;
   }
   function renderG(elId, mode){
+    if (window.IsaiNative) return;   // Google sign-in doesn't work inside the app
     const el = $(elId), errEl = $(GERR[mode]);
     let tries = 0;
     const wait = () => {
@@ -5229,9 +5834,9 @@ updateInstallBtn();
   /* Boot: nothing hits the Isai API until a valid session exists */
   const tok = getTok();
   window.addEventListener('offline', () => { if (!started) return; toast("You're offline · showing your downloads"); if (NET_ONLY.includes(view)) show('downloads'); else if (view === 'downloads') renderDownloads(); });
-  window.addEventListener('online', () => { if (started) { toast('Back online'); if (view === 'downloads') renderDownloads(); } });
+  window.addEventListener('online', () => { if (started && isOnline()) { toast('Back online'); if (view === 'downloads') renderDownloads(); } });
   if (!tok) { showLock(); if (!navigator.onLine) $('lkErr').textContent = "You're offline. Connect to sign in."; return; }
-  if (!navigator.onLine) { startApp(); return; } // offline: skip the check, go straight to downloads
+  if (!isOnline()) { startApp(); return; } // offline: skip the check, go straight to downloads
   fetch(SERVER + '/validate-token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: tok }) })
     .then(r => r.json())
     .then(d => {
