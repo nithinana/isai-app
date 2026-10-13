@@ -1081,6 +1081,13 @@ html{scroll-behavior:smooth}
 .phead{display:flex;align-items:flex-end;gap:22px;padding:18px 0 6px;flex-wrap:wrap}
 .pav{--h:210;display:grid;place-items:center;width:96px;height:96px;border-radius:50%;flex:none;font-style:normal;font-weight:800;font-size:38px;color:#fff;background:linear-gradient(135deg,hsl(var(--h) 62% 52%),hsl(calc(var(--h) + 48) 58% 32%));box-shadow:0 10px 36px rgba(0,0,0,.35)}
 .pav.xl{width:150px;height:150px;font-size:60px}
+.pav{position:relative;overflow:hidden}
+.exp{display:inline-grid;place-items:center;width:14px;height:14px;margin-right:5px;border-radius:3px;background:rgba(255,255,255,.62);color:#141418;font-style:normal;font-weight:800;font-size:10px;line-height:1;letter-spacing:0;vertical-align:-1px;flex:none}
+.pav .pavi{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%}
+.imgprev{display:flex;align-items:center;gap:12px;margin:10px 0 2px;min-height:64px}
+.imgprev img{width:64px;height:64px;object-fit:cover;border-radius:12px;background:rgba(255,255,255,.06)}
+.imgprev.round img{border-radius:50%}
+.imgprev span{font-size:12px;opacity:.7}
 .pav.sm{width:30px;height:30px;font-size:13px;box-shadow:none}
 #nav .pav.sm{width:28px;height:28px;font-size:12px}
 #nav button.dot{position:relative}#nav button.dot::after{content:'';position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:#ff5a6e;box-shadow:0 0 0 2px rgba(14,14,18,.9)}
@@ -1950,7 +1957,7 @@ async function tint(t){
 const lists = {}, names = {}, relCache = {}, entCache = {};
 let homeData = null, view = 'home', viewArg = null, stack = [], listKey = '', entTok = 0, pageEnt = null, disc = {};
 let searchType = 'songs', lastSearch = { q: '', type: 'songs', items: [] }, searchKeep = false;
-let recent = [], liked = [], saved = [], playlists = [], acctName = '';   // all of this lives on the Thirai account (see "account storage")
+let recent = [], liked = [], saved = [], followed = [], playlists = [], acctName = '', acctAvatar = '';   // all of this lives on the Thirai account (see "account storage")
 
 /* ---------- account storage ----------
    Everything Isai remembers about you (liked songs, saved albums/artists, recently played,
@@ -2093,7 +2100,7 @@ async function initAccount(){
     const r = await acct.now('GET', '/isai/bootstrap');
     if (!r.ok) throw new Error((r.d && r.d.error) || 'Server error');
     const d = r.d;
-    liked = d.liked || []; saved = d.saved || []; recent = d.recent || [];
+    liked = d.liked || []; saved = d.saved || []; recent = d.recent || []; followed = d.followed || [];
     playlists = (d.playlists || []).map(fromServerPl); acctName = d.username || '';
     snapPl(); applyProfileSummary(d.profile); paintNavAvatar(); acctReady = true; queueAutoDl();
     if (!acctName) requireUsername();
@@ -2133,7 +2140,9 @@ const isSaved = e => saved.some(s => s.kind === e.kind && s.id === e.id);
 
 /* ---------- artist / album links ---------- */
 const artistsOf = t => (t.artists && t.artists.length) ? t.artists : (t.artist ? t.artist.split(/,\s*/).map(n => ({ name: n })) : []);
-const artistLinks = t => artistsOf(t).map(a => a.id ? `<a data-artist="${esc(a.id)}">${esc(a.name)}</a>` : `<a data-aname="${esc(a.name)}">${esc(a.name)}</a>`).join(', ');
+const EBADGE = '<i class="exp" title="Explicit" aria-label="Explicit">E</i>';
+const expTag = t => t && t.explicit ? EBADGE : '';
+const artistLinks = t => expTag(t) + artistsOf(t).map(a => a.id ? `<a data-artist="${esc(a.id)}">${esc(a.name)}</a>` : `<a data-aname="${esc(a.name)}">${esc(a.name)}</a>`).join(', ');
 async function firstResult(type, q){
   const r = (await (await api(`/search?limit=1&type=${type}&q=${encodeURIComponent(q)}`)).json()).results;
   return r[0];
@@ -2158,7 +2167,7 @@ function cardHtml(t, key, i, removable){
     <div class="cv">${imgTag(t, 340)}<div class="ov">${ic('play', 40)}</div>
       ${removable ? `<button class="x" data-a="rm" title="Remove">${ic('x')}</button>` : ''}
       <div class="mini"><button data-a="like" class="${isLiked(t.id) ? 'on' : ''}" title="Like">${ic('heart')}</button><button data-a="pl" title="Add to playlist">${ic('plus')}</button><button data-a="dl" title="Download">${ic('dl')}</button></div>
-    </div><b>${esc(t.title)}</b><span>${esc(t.artist)}</span></div>`;
+    </div><b>${esc(t.title)}</b><span>${expTag(t)}${esc(t.artist)}</span></div>`;
 }
 function rowHtml(title, key, items, removable, label){
   lists[key] = items; names[key] = title;
@@ -2289,7 +2298,7 @@ function fillHome(){
 }
 function fillCont(){
   const el = $('cont'); if (!el) return;
-  el.innerHTML = (playlists.length ? rowHtml('Your playlists', 'uplhome', plCards(), false, 'Library') : '') + (recent.length ? rowHtml('Listen again', 'recent', recent, true, 'Recently played') : '');
+  el.innerHTML = ((playlists.length || followed.length) ? rowHtml('Your playlists', 'uplhome', plCards(), false, 'Library') : '') + (recent.length ? rowHtml('Listen again', 'recent', recent, true, 'Recently played') : '');
   wireRows(el); markPlaying();
 }
 
@@ -2559,7 +2568,7 @@ function renderLiked(){
     <div class="libact"><button class="btn" id="plNew">${ic('plus', 16)} New playlist</button><button class="btn ghost" id="impAny">Import</button></div>
     <h3 class="sec0">Playlists</h3>
     ${gridHtml('uplist', pc)}
-    ${playlists.length ? '' : '<p class="qmsg">No other playlists yet. Create one, or paste the link of a public YouTube Music playlist to import it.</p>'}
+    ${(playlists.length || followed.length) ? '' : '<p class="qmsg">No other playlists yet. Create one, or paste the link of a public YouTube Music playlist to import it.</p>'}
     ${saved.length ? `<h3 class="sec0">Saved</h3>${gridHtml('saved', saved)}` : ''}
 </div>`;
   $('plNew').onclick = () => promptName({ title: 'New playlist', cta: 'Create', onOk: v => { createPlaylist(v); toast(`Created "${v}"`); if (view === 'liked') renderLiked(); } });
@@ -2646,7 +2655,7 @@ function confirmClearData(){
     for (const k of [...LEGACY_KEYS, 'isrcs', 'rsearch', 'ytm_oauth', 'isai_import_id'])
       try { localStorage.removeItem(k); } catch {}
     clearTimeout(plT); acct.clear(); acct.send('DELETE', '/isai/data');
-    liked = []; saved = []; playlists = []; recent = []; plSnap = {};
+    liked = []; saved = []; followed = []; playlists = []; recent = []; plSnap = {};
     lplays = []; ltracks = {}; ltime = blankTime(); ltimeSent = blankTime(); actLoaded = true; isrcs = {};
     ldirty = false; sess = { id: null, sec: 0, logged: false, last: 0 };
     homeData = null; for (const k in entCache) delete entCache[k];
@@ -3012,7 +3021,7 @@ function updateNP(){
 }
 const qrow = (t, i, kind) => `<div class="qr ${kind === 'q' && i === qi ? 'cur' : ''}${kind === 'q' && qEnd > qi && i > qi && i <= qEnd ? ' qd' : ''}" data-i="${i}" data-kind="${kind}" data-id="${esc(t.id)}">
   <div class="qt">${imgTag(t, 160)}<span class="qp">${ic('play', 18)}</span></div>
-  <div class="qm"><b>${esc(t.title)}</b><span>${esc(t.artist)}</span></div><em>${t.duration ? fmt(t.duration) : ''}</em></div>`;
+  <div class="qm"><b>${esc(t.title)}</b><span>${expTag(t)}${esc(t.artist)}</span></div><em>${t.duration ? fmt(t.duration) : ''}</em></div>`;
 function renderQueue(){
   const box = $('npq');
   box.classList.toggle('lyr', npTab === 'lyrics'); $('lyhd').hidden = npTab !== 'lyrics';
@@ -3134,7 +3143,7 @@ function openSongMenu(t, o = {}){
     ['share', 'share', 'Share'],
     ['dl', 'dl', 'Download']
   ].filter(Boolean);
-  const sh = openModal(`<div class="smh"><img src="${esc(cov(t, 120))}" alt=""><div class="qm"><b>${esc(t.title)}</b><span>${esc(t.artist || '')}</span></div></div>`
+  const sh = openModal(`<div class="smh"><img src="${esc(cov(t, 120))}" alt=""><div class="qm"><b>${esc(t.title)}</b><span>${expTag(t)}${esc(t.artist || '')}</span></div></div>`
     + items.map(([k, icn, label, danger]) => `<button class="plr act${danger ? ' danger' : ''}" data-k="${k}"><span class="plc">${ic(icn, 20)}</span><span class="qm"><b>${label}</b></span></button>`).join(''));
   sh.onclick = e => {
     const r = e.target.closest('[data-k]'); if (!r) return;
@@ -3464,7 +3473,7 @@ async function saveWithExtras(t){
 /* ---------- download ---------- */
 const fmtSize = b => !b ? '' : b >= 1073741824 ? (b / 1073741824).toFixed(2) + ' GB' : b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
 const fmtDate = ts => { const d = new Date(ts), n = new Date(); return d.toDateString() === n.toDateString() ? 'Today ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }); };
-const slim = t => ({ id: t.id, title: t.title, artist: t.artist, artists: t.artists, album: t.album, album_id: t.album_id, thumbnail: t.thumbnail, duration: t.duration });
+const slim = t => ({ id: t.id, title: t.title, artist: t.artist, artists: t.artists, album: t.album, album_id: t.album_id, thumbnail: t.thumbnail, duration: t.duration, explicit: t.explicit || undefined });
 function saveFile(blob, name){
   const url = URL.createObjectURL(blob);
   const el = Object.assign(document.createElement('a'), { href: url, download: name });
@@ -4042,7 +4051,8 @@ function openPlSort(id){
   sh.onclick = e => { const b = e.target.closest('[data-sort]'); if (!b) return; plSortSet(id, b.dataset.sort); closeModal(); renderUserPl(id); };
 }
 const likedCard = () => ({ kind: 'uplaylist', id: LIKED_ID, title: 'Liked songs', artist: `Pinned · ${liked.length} song${liked.length === 1 ? '' : 's'}`, thumbnail: LIKED_COVER });
-const plCards = () => [likedCard()].concat(playlists.map(p => ({ kind: 'uplaylist', id: p.id, title: p.name, artist: `${p.tracks.length} song${p.tracks.length === 1 ? '' : 's'}${p.visibility && p.visibility !== 'private' ? ' · ' + VIS[p.visibility][0] : ''}`, thumbnail: plCover(p) })));
+const followedCards = () => followed.map(f => ({ kind: 'sharedpl', id: f.id, title: f.name, artist: f.owner ? `by @${f.owner}` : 'Shared playlist', thumbnail: f.thumb || PH }));
+const plCards = () => [likedCard()].concat(playlists.map(p => ({ kind: 'uplaylist', id: p.id, title: p.name, artist: `${p.tracks.length} song${p.tracks.length === 1 ? '' : 's'}${p.visibility && p.visibility !== 'private' ? ' · ' + VIS[p.visibility][0] : ''}`, thumbnail: plCover(p) }))).concat(followedCards());
 
 /* ---------- username + playlist sharing ---------- */
 const VIS = {
@@ -4138,8 +4148,11 @@ async function renderShared(slug){
   const r = await acct.now('GET', '/isai/playlist/' + enc(slug));
   if (my !== entTok || view !== 'shared') return;
   if (!r.ok) {
-    main.innerHTML = `<div class="bkrow">${backBtn()}</div><div class="pg"><h1 class="t">Playlist unavailable</h1><p class="qmsg">${r.status === 404 ? 'This playlist is private, or the link is no longer valid.' : esc((r.d && r.d.error) || "Couldn't load this playlist.")}</p></div>`;
-    return hydrate(main);
+    const fl = followed.find(f => f.id === slug);
+    main.innerHTML = `<div class="bkrow">${backBtn()}</div><div class="pg"><h1 class="t">Playlist unavailable</h1><p class="qmsg">${r.status === 404 ? 'This playlist is private, or the link is no longer valid.' : esc((r.d && r.d.error) || "Couldn't load this playlist.")}</p>${fl ? `<div class="alib"><button class="btn ghost" id="shGone">Remove "${esc(fl.name)}" from your library</button></div>` : ''}</div>`;
+    hydrate(main);
+    if ($('shGone')) $('shGone').onclick = () => { followed = followed.filter(f => f.id !== slug); acct.send('DELETE', '/isai/library/followed?key=' + enc(slug)); toast('Removed from your library'); goBack(); };
+    return;
   }
   const d = r.d, tracks = d.tracks || [], key = 'shared_' + slug;
   lists[key] = tracks; names[key] = d.name; listKey = key; pageEnt = null;
@@ -4148,8 +4161,11 @@ async function renderShared(slug){
   const fb = tracks.length ? cov({ id: tracks[0].id, thumbnail: tracks[0].thumbnail }, 640) : PH;
   const cover = d.thumb ? `<img class="acover" src="${esc(d.thumb)}" alt="" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${esc(fb)}'">` : tracks.length ? imgTag({ id: tracks[0].id, thumbnail: tracks[0].thumbnail }, 640, 'class="acover"') : `<div class="acover ph">${ic('note', 72)}</div>`;
   const mine = d.is_owner && d.own_pid && playlists.find(p => p.id === d.own_pid);
-  const copy = playlists.find(p => p.copyOf === slug);
-  const sv = mine ? ['view', 'Open in your library', 'chev'] : copy ? ['have', 'Already in your library', 'check'] : ['save', 'Save to your library', 'plus'];
+  const fol = followed.find(f => f.id === slug);
+  const folItem = () => ({ id: slug, name: d.name, owner: d.owner || '', thumb: d.thumb || (tracks[0] && tracks[0].thumbnail) || '' });
+  if (fol && (fol.name !== d.name || (fol.owner || '') !== (d.owner || '') || (fol.thumb || '') !== folItem().thumb)) {   // keep the saved card fresh
+    Object.assign(fol, folItem()); acct.send('POST', '/isai/library/followed', { items: [fol] });
+  }
   main.innerHTML = `<div class="bkrow">${backBtn()}</div>
     <div class="alb"><aside class="alb-l">${cover}
       <h1>${esc(d.name)}</h1>
@@ -4163,7 +4179,7 @@ async function renderShared(slug){
           ${tracks.length ? '<button data-m="shuffle">Shuffle play</button><button data-m="dlall">Download all</button><button data-m="addall">Add all to playlist</button>' : ''}${d.visibility !== 'private' ? '<button data-m="copylink">Copy link</button>' : ''}
         </div>
       </div>
-      ${mine ? '' : `<div class="alib"><button class="btn ${copy ? 'ghost' : ''}" id="shSave" title="${sv[1]}">${ic(copy ? 'check' : 'plus', 16)} ${copy ? 'In your library' : 'Add to library'}</button></div>`}</aside>
+      ${mine ? '' : `<div class="alib"><button class="btn ${fol ? 'ghost' : ''}" id="shSave" title="${fol ? 'Tap to remove from your library' : 'Keeps it as @' + esc(d.owner || 'their') + '\'s playlist and stays up to date'}">${ic(fol ? 'check' : 'plus', 16)} ${fol ? 'In your library' : 'Add to library'}</button><button class="btn ghost" id="shDup" title="Makes your own editable copy that no longer follows ${esc(d.owner ? '@' + d.owner : 'the original')}">Duplicate as my own</button></div>`}</aside>
       <div class="alb-r"><div class="tl">${tracks.length ? tracks.map((t, i) => trow(t, i, true)).join('') : '<p class="qmsg">This playlist is empty.</p>'}</div></div></div>`;
   hydrate(main); bindPlay(key, tracks.length);
   $('shShare').onclick = async () => {
@@ -4173,10 +4189,18 @@ async function renderShared(slug){
     toast(await copyText(url) ? 'Link copied' : "Couldn't copy the link", false);
   };
   if ($('shDl')) $('shDl').onclick = () => downloadAll(tracks, d.name, { id: key, label: d.name });
-  if ($('shSave')) $('shSave').onclick = () => {
-    if (copy) return toast('Already in your library');
+  if ($('shSave')) $('shSave').onclick = async () => {
+    if (fol) {
+      if (!(await askConfirm({ title: 'Remove from library?', msg: `"${d.name}" will be removed from your library. You can add it again from its link.`, ok: 'Remove', danger: true }))) return;
+      followed = followed.filter(f => f.id !== slug); acct.send('DELETE', '/isai/library/followed?key=' + enc(slug));
+      toast('Removed from your library'); return renderShared(slug);
+    }
+    const it = folItem(); followed.unshift(it); acct.send('POST', '/isai/library/followed', { items: [it] });
+    toast(`Added "${d.name}"${d.owner ? ' by @' + d.owner : ''} to your library`); renderShared(slug);
+  };
+  if ($('shDup')) $('shDup').onclick = () => {
     const p = createPlaylist(d.name, tracks, { thumb: d.thumb || '', copyOf: slug });
-    toast(`Saved "${p.name}" to your library`); renderShared(slug);
+    toast(`Duplicated "${p.name}" as your own playlist`); show('upl', p.id);
   };
   $('aMenu').onclick = e => { e.stopPropagation(); toggleAMenu(); };
   $('amenu').onclick = async e => {
@@ -4204,14 +4228,14 @@ let profRange = store.get('profrange', 'month'); if (!PROF_RANGES[profRange]) pr
 function applyProfileSummary(p){
   if (!p) return;
   Object.assign(profSet, p.settings || {});
-  profFeatured = p.featured || []; profFriends = p.friend_count || 0; profIncoming = p.incoming || 0;
+  profFeatured = p.featured || []; profFriends = p.friend_count || 0; profIncoming = p.incoming || 0; acctAvatar = p.avatar || '';
   paintNavAvatar();
 }
 const nameHue = n => { let h = 0; for (const c of String(n)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
-const avatar = (name, cls = '') => `<i class="pav ${cls}" style="--h:${nameHue(name)}">${esc(name ? String(name)[0].toUpperCase() : '?')}</i>`;
+const avatar = (name, cls = '', url = '') => `<i class="pav ${cls}" style="--h:${nameHue(name)}">${esc(name ? String(name)[0].toUpperCase() : '?')}${url ? `<img class="pavi" src="${esc(url)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</i>`;
 function paintNavAvatar(){
   const b = document.getElementById('navProfile'); if (!b || !b.firstElementChild) return;
-  b.firstElementChild.innerHTML = acctName ? avatar(acctName, 'sm') : ic('user');
+  b.firstElementChild.innerHTML = acctName ? avatar(acctName, 'sm', acctAvatar) : ic('user');
   b.classList.toggle('dot', profIncoming > 0);
 }
 function ago(ts){
@@ -4237,7 +4261,7 @@ async function renderProfile(name){
     return;
   }
   const uname = own ? acctName : name;
-  main.innerHTML = `${back}<div class="pg prof"><header class="phead">${avatar(uname, 'xl')}<div class="pinfo"><h1>@${esc(uname)}</h1></div></header><p class="qmsg">Loading…</p></div>`;
+  main.innerHTML = `${back}<div class="pg prof"><header class="phead">${avatar(uname, 'xl', own ? acctAvatar : '')}<div class="pinfo"><h1>@${esc(uname)}</h1></div></header><p class="qmsg">Loading…</p></div>`;
   hydrate(main);
   const r = await acct.now('GET', '/isai/profile/' + enc(uname));
   if (my !== profTok) return;
@@ -4250,6 +4274,7 @@ async function renderProfile(name){
     Object.assign(profSet, r.d.settings || {});
     if (r.d.friend_count != null) profFriends = r.d.friend_count;
     if (r.d.incoming != null) profIncoming = r.d.incoming;
+    if (r.d.avatar !== undefined) acctAvatar = r.d.avatar || '';
     paintNavAvatar();
   }
   paintProfile();
@@ -4266,7 +4291,7 @@ function friendBtns(d){
 function paintProfile(){
   const { d, own, uname, back } = profCur, main = $('main');
   if (!d.profile_visible) {
-    main.innerHTML = `${back}<div class="pg prof"><header class="phead">${avatar(uname, 'xl')}<div class="pinfo"><h1>@${esc(uname)}</h1></div><div class="pbtns">${friendBtns(d)}</div></header>
+    main.innerHTML = `${back}<div class="pg prof"><header class="phead">${avatar(uname, 'xl', own ? acctAvatar : '')}<div class="pinfo"><h1>@${esc(uname)}</h1></div><div class="pbtns">${friendBtns(d)}</div></header>
       <div class="pempty">${ic('lock', 22)}<p>This profile is private.</p></div></div>`;
     return hydrate(main);
   }
@@ -4278,7 +4303,7 @@ function paintProfile(){
   const statSec = (anyStat || own) ? `<section class="psec"><div class="psh"><h2>Stats</h2><button class="iconb" id="pMoreStats" title="View more stats" aria-label="View more stats">${ic('chart', 18)}</button></div>
       <div id="pStats"><p class="qmsg">Loading…</p></div></section>` : '';
   main.innerHTML = `${back}<div class="pg prof">
-    <header class="phead">${avatar(uname, 'xl')}
+    <header class="phead">${avatar(uname, 'xl', own ? acctAvatar : d.avatar)}
       <div class="pinfo"><h1>@${esc(uname)}</h1><div class="pline">${fr}${pls.length ? `<i>·</i><span>${plural(pls.length, 'playlist')}</span>` : ''}</div></div>
       <div class="pbtns">${own ? `<button class="btn ghost" id="pEdit">Edit profile</button><button class="rb sm" id="pCopy" title="Copy profile link">${ic('share', 18)}</button><button class="rb sm" id="pSettings" title="Settings" aria-label="Settings">${ic('sliders', 18)}</button>` : friendBtns(d)}</div>
     </header>${status}${plSec}${statSec}
@@ -4476,11 +4501,11 @@ const FR_EASE = 'cubic-bezier(.32,.72,0,1)';
 function updateFrCount(){
   const b = $('pFr'); if (b) b.innerHTML = `${plural(profFriends, 'friend')}${profIncoming ? `<i class="pbadge">${profIncoming}</i>` : ''}`;
 }
-const frRow = (name, right, i) => `<div class="frow" style="--i:${i}"><a data-fu="${esc(name)}">${avatar(name, 'sm')}<b>@${esc(name)}</b></a><span class="fra">${right}</span></div>`;
+const frRow = (name, right, i, pic = '') => `<div class="frow" style="--i:${i}"><a data-fu="${esc(name)}">${avatar(name, 'sm', pic)}<b>@${esc(name)}</b></a><span class="fra">${right}</span></div>`;
 function frListHtml(){
   const { friends, incoming, outgoing } = frData; let i = 0;
   if (frTab === 'friends') return friends.length
-    ? friends.map(f => frRow(f.username, `<button class="pill" data-frm="${esc(f.username)}">Remove</button>`, i++)).join('')
+    ? friends.map(f => frRow(f.username, `<button class="pill" data-frm="${esc(f.username)}">Remove</button>`, i++, f.avatar)).join('')
     : '<p class="mhint frempty">No friends yet. Add someone by username below.</p>';
   const out = (incoming.length ? '<h4 class="prvh">Requests</h4>' + incoming.map(q => frRow(q.username, `<button class="pill pri" data-fra="${q.id}">Accept</button><button class="pill" data-frd="${q.id}">Decline</button>`, i++)).join('') : '')
     + (outgoing.length ? '<h4 class="prvh">Sent</h4>' + outgoing.map(q => frRow(q.username, `<button class="pill" data-frd="${q.id}">Cancel</button>`, i++)).join('') : '');
@@ -4580,12 +4605,25 @@ function openProfileEditor(){
     ['top_tracks', 'Top tracks', ''], ['top_artists', 'Top artists', ''], ['top_albums', 'Top albums', ''], ['history', 'Listen history', 'Your recent plays'], ['time', 'Listening time and totals', '']];
   const sh = openModal(`<h3>Edit profile</h3>
     <div class="prv"><div><b>Username</b><span>${acctName ? '@' + esc(acctName) : 'Not set yet'}</span></div><button class="pill" id="peUser">${acctName ? 'Change' : 'Set'}</button></div>
+    <div class="prv"><div><b>Profile picture</b><span>${acctAvatar ? 'Custom image set' : 'Paste an image link'}</span></div><button class="pill" id="peAvatar">${acctAvatar ? 'Change' : 'Set'}</button></div>
     <div class="prv"><div><b>Playlists on your profile</b><span>${plural(profFeatured.length, 'playlist')} · public playlists only</span></div><button class="pill" id="pePl">Choose</button></div>
     <h4 class="prvh">Who can see</h4>
     ${rows.map(([k, t, h]) => `<div class="prv"><div><b>${t}</b>${h ? `<span>${h}</span>` : ''}</div><div class="seg" data-pset="${k}">${['public', 'friends', 'private'].map(v => `<button data-pv="${v}" class="${profSet[k] === v ? 'on' : ''}">${v === 'friends' ? 'Friends' : v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</div></div>`).join('')}
     <div class="mbtns"><button class="btn" data-mc>Done</button></div>`);
   sh.onclick = async e => {
     if (e.target.closest('#peUser')) return askUsername(() => { paintNavAvatar(); closeModal(); if (view === 'profile') renderProfile(null); }, () => openProfileEditor());
+    if (e.target.closest('#peAvatar')) return promptImage({
+      title: 'Profile picture', value: acctAvatar, round: true,
+      hint: 'Paste a direct https link to an image (ends in .jpg, .png, .webp…). Square images look best.',
+      onCancel: () => openProfileEditor(),
+      onOk: async v => {
+        const r = await acct.now('PATCH', '/isai/profile', { avatar: v });
+        if (!r.ok) { const e2 = $('miErr'); if (e2) e2.textContent = (r.d && r.d.error) || "Couldn't save that picture."; return false; }
+        acctAvatar = r.d.avatar || ''; paintNavAvatar();
+        toast(acctAvatar ? 'Profile picture updated' : 'Profile picture removed');
+        if (view === 'profile') renderProfile(null);
+        openProfileEditor();
+      } });
     if (e.target.closest('#pePl')) return openFeatured();
     const pv = e.target.closest('[data-pv]'); if (!pv) return;
     const grp = pv.parentElement, k = grp.dataset.pset, v = pv.dataset.pv, old = profSet[k];
@@ -4682,6 +4720,33 @@ $('dlg').addEventListener('click', e => {
   const o = e.target.closest('[data-dv]'); if (o) _dlgClose(o.dataset.dv);
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('dlg').hidden) { e.stopImmediatePropagation(); _dlgClose(null); } }, true);
+/* paste an image link (custom playlist cover / profile picture). Empty + Save = remove it. */
+function promptImage({ title, value = '', hint = '', round = false, onOk, onCancel }){
+  const sh = openModal(`<h3>${esc(title)}</h3><p class="mhint">${esc(hint)}</p>
+    <input id="miIn" class="minp" type="url" maxlength="600" value="${esc(value)}" placeholder="https://example.com/image.jpg" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="imgprev${round ? ' round' : ''}" id="miPrev"></div>
+    <p class="mhint merr" id="miErr"></p>
+    <div class="mbtns"><button class="btn ghost" id="miNo">Cancel</button>${value ? '<button class="btn ghost danger" id="miRm">Remove</button>' : ''}<button class="btn" id="miOk">Save</button></div>`);
+  const inp = $('miIn'), prev = $('miPrev'), err = $('miErr'); inp.focus();
+  const ok = v => /^https:\/\/[^\s<>"']+$/i.test(v) && v.length <= 600;
+  const paint = () => {
+    const v = inp.value.trim(); err.textContent = '';
+    if (!v) { prev.innerHTML = ''; return; }
+    if (!ok(v)) { prev.innerHTML = ''; return; }
+    prev.innerHTML = `<img alt="" referrerpolicy="no-referrer" src="${esc(v)}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'Could not load that image'}))">`;
+  };
+  paint(); inp.oninput = paint;
+  const save = async v => { $('miOk').disabled = true; const r = await onOk(v); if (r === false) $('miOk').disabled = false; };
+  $('miOk').onclick = () => {
+    const v = inp.value.trim();
+    if (v && !ok(v)) { err.textContent = 'Paste a direct https link to an image.'; return; }
+    save(v);
+  };
+  if ($('miRm')) $('miRm').onclick = () => save('');
+  $('miNo').onclick = () => { if (onCancel) onCancel(); else closeModal(); };
+  inp.onkeydown = e => { if (e.key === 'Enter') $('miOk').click(); };
+  return sh;
+}
 function promptName({ title, value = '', cta, onOk }){
   openModal(`<h3>${esc(title)}</h3><input id="mIn" class="minp" maxlength="80" value="${esc(value)}" placeholder="Playlist name" autocomplete="off"><div class="mbtns"><button class="btn ghost" data-mc>Cancel</button><button class="btn" id="mOk">${esc(cta)}</button></div>`);
   const inp = $('mIn'); inp.focus(); inp.select();
@@ -4985,7 +5050,7 @@ function renderUserPl(id){
         ${tracks.length ? `<button class="rb big" id="lPlay" title="Play">${ic('play', 28)}<span class="lbl">Play</span></button>` : ''}
         ${pl.virtual && !tracks.length ? '' : `<button class="rb sm" id="aMenu" title="More">${ic('dots', 18)}</button>
         <div class="menu glass" id="amenu" hidden>
-          ${tracks.length ? '<button data-m="shuffle">Shuffle play</button><button data-m="dlall">Download all</button>' : ''}${pl.virtual ? '' : `${tracks.length > 1 ? '<button data-m="reorder">Reorder songs</button>' : ''}<button data-m="share">Share…</button><button data-m="rename">Rename</button>${pl.srcId ? '<button data-m="sync">Sync from YouTube Music</button>' : ''}<button data-m="find">Find songs to add</button><button data-m="del">Delete playlist</button>`}
+          ${tracks.length ? '<button data-m="shuffle">Shuffle play</button><button data-m="dlall">Download all</button>' : ''}${pl.virtual ? '' : `${tracks.length > 1 ? '<button data-m="reorder">Reorder songs</button>' : ''}<button data-m="share">Share…</button><button data-m="rename">Rename</button><button data-m="cover">Change cover</button>${pl.srcId ? '<button data-m="sync">Sync from YouTube Music</button>' : ''}<button data-m="find">Find songs to add</button><button data-m="del">Delete playlist</button>`}
         </div>`}
       </div>
       </aside>
@@ -5002,6 +5067,10 @@ function renderUserPl(id){
     else if (k === 'dlall') downloadAll(tracks, pl.name, dlOpt);
     else if (k === 'share') openShare(pl);
     else if (k === 'rename') promptName({ title: 'Rename playlist', value: pl.name, cta: 'Save', onOk: v => { pl.name = v; savePl(); renderUserPl(id); } });
+    else if (k === 'cover') promptImage({
+      title: 'Playlist cover', value: pl.thumb && /^https:/i.test(pl.thumb) ? pl.thumb : '',
+      hint: 'Paste a direct https link to an image. Leave it empty and save, or press Remove, to go back to the automatic cover.',
+      onOk: v => { pl.thumb = v; savePl(); closeModal(); toast(v ? 'Cover updated' : 'Cover removed'); renderUserPl(id); } });
     else if (k === 'reorder') { plReorder = id; renderUserPl(id); }
     else if (k === 'sync') syncPl(pl);
     else if (k === 'find') show('search');
@@ -5040,7 +5109,7 @@ function paintDlSummary(){
   card.querySelector('i').style.width = j ? Math.round(n / j.total * 100) + '%' : '';
 }
 const dqRow = a => `<div class="qr dlrow"><div class="qt">${imgTag(a.t, 160)}</div>
-  <div class="qm"><b>${esc(a.t.title)}</b><span>${esc(a.t.artist || '')}</span>
+  <div class="qm"><b>${esc(a.t.title)}</b><span>${expTag(a.t)}${esc(a.t.artist || '')}</span>
   <span class="dlm"><span data-dls="${esc(a.t.id)}">Preparing…</span> · ${esc(a.fmt.toUpperCase())}</span>
   <div class="dlbar ${a.total ? '' : 'ind'}" data-dlp="${esc(a.t.id)}"><i></i></div></div></div>`;
 function dlPanelHtml(){

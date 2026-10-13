@@ -1789,7 +1789,7 @@ def _track(x: dict, thumb=None, artist=None, album=None, album_id=None):
     alb = x.get("album")
     aid = alb.get("id") if isinstance(alb, dict) else None
     alb = alb.get("name") if isinstance(alb, dict) else (alb or album)
-    return {
+    t = {
         "id": vid,
         "title": x.get("title"),
         "artist": _artist_names(x) or artist,
@@ -1800,6 +1800,9 @@ def _track(x: dict, thumb=None, artist=None, album=None, album_id=None):
         "thumbnail": _best_thumb(x.get("thumbnails")) or thumb,
         "url": f"{MUSIC_URL}/watch?v={vid}",
     }
+    if x.get("isExplicit"):
+        t["explicit"] = True        # shown as the "E" badge in the app
+    return t
 
 
 def _audio_only(items):
