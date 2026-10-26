@@ -25,7 +25,7 @@ jobs:
             echo "live site lacks the v2 shim or the server-logs screen - keeping the committed copy"
           fi
       - name: Icons
-        run: sudo apt-get install -y imagemagick >/dev/null && bash tools/make_icons.sh
+        run: sudo apt-get update && sudo apt-get install -y imagemagick && bash tools/make_icons.sh
       - name: Build
         run: gradle assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
