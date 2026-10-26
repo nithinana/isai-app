@@ -19,10 +19,10 @@ jobs:
         run: test -f app/src/main/python/backend.py || (echo "backend.py missing in app/src/main/python" && exit 1)
       - name: Refresh offline copy from the live site
         run: |
-          if curl -fsSL --max-time 30 https://isai.thirai.uk/ -o /tmp/site.html && grep -q "isai-shim-v2" /tmp/site.html; then
+          if curl -fsSL --max-time 30 https://isai.thirai.uk/ -o /tmp/site.html && grep -q "isai-shim-v2" /tmp/site.html && grep -q "isai-serverlogs-v1" /tmp/site.html; then
             cp /tmp/site.html app/src/main/assets/index.html && echo "bundled the live site"
           else
-            echo "live site lacks the v2 shim - keeping the committed copy"
+            echo "live site lacks the v2 shim or the server-logs screen - keeping the committed copy"
           fi
       - name: Icons
         run: sudo apt-get install -y imagemagick >/dev/null && bash tools/make_icons.sh

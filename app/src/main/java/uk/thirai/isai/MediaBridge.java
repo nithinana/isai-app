@@ -105,6 +105,14 @@ public class MediaBridge {
 
     void setBackendInfo(String info) { backendInfo = info == null ? "" : info; }
 
+    /** Server log screen (app only): lines newer than `after` plus the server state, as JSON. */
+    @JavascriptInterface
+    public String serverLogs(double after) { return ServerLog.since((long) after); }
+
+    /** Server log screen: restart the on-device backend. */
+    @JavascriptInterface
+    public void restartServer() { ServerService.requestRestart("requested from the app"); }
+
     /** The page's bridge script calls this once it has loaded (proves the page can reach the app). */
     @JavascriptInterface
     public void hello(String info) {
