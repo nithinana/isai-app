@@ -45,7 +45,29 @@ jobs:
             windows/isai_desktop.py
       - name: Zip
         run: 7z a Isai-windows.zip ./dist/Isai > /dev/null
+      - name: Get WebView2 bootstrapper
+        shell: pwsh
+        run: Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile MicrosoftEdgeWebview2Setup.exe
+      - name: Install WiX
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          wix extension add -g WixToolset.UI.wixext/5.0.2
+      - name: Build MSI
+        shell: pwsh
+        run: |
+          $ws = $env:GITHUB_WORKSPACE
+          wix build -arch x64 -sval -ext WixToolset.UI.wixext `
+            -d "DistDir=$ws\dist\Isai" `
+            -d "IconFile=$ws\windows\isai.ico" `
+            -d "Wv2Setup=$ws\MicrosoftEdgeWebview2Setup.exe" `
+            -o "$ws\Isai-Setup.msi" `
+            "$ws\windows\installer\Isai.wxs"
       - uses: actions/upload-artifact@v4
         with:
           name: Isai-windows
           path: Isai-windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Isai-installer
+          path: Isai-Setup.msi

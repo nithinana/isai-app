@@ -1,0 +1,93 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="Isai" Manufacturer="Isai" Version="1.0.0"
+           UpgradeCode="7B3E5C0A-4D2F-4E8B-9A61-2C5F8D1E6B47"
+           Scope="perMachine" Compressed="yes">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Isai is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="IsaiIcon" SourceFile="$(IconFile)" />
+    <Property Id="ARPPRODUCTICON" Value="IsaiIcon" />
+
+    <!-- detect an existing WebView2 runtime -->
+    <Property Id="WV2_MACHINE">
+      <RegistrySearch Id="Wv2Machine" Root="HKLM" Bitness="always64"
+        Key="SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+        Name="pv" Type="raw" />
+    </Property>
+    <Property Id="WV2_USER">
+      <RegistrySearch Id="Wv2User" Root="HKCU" Bitness="always64"
+        Key="Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+        Name="pv" Type="raw" />
+    </Property>
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Isai" />
+    </StandardDirectory>
+
+    <!-- all PyInstaller output -->
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(DistDir)\**" />
+    </ComponentGroup>
+
+    <!-- WebView2 bootstrapper, run only if the runtime is missing -->
+    <ComponentGroup Id="WebView2Files" Directory="INSTALLFOLDER">
+      <Component Id="WebView2Bootstrapper">
+        <File Id="WebView2Setup" Source="$(Wv2Setup)" />
+      </Component>
+    </ComponentGroup>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcutComp">
+        <Shortcut Id="StartMenuShortcut" Name="Isai"
+                  Target="[INSTALLFOLDER]Isai.exe"
+                  WorkingDirectory="INSTALLFOLDER" Icon="IsaiIcon" />
+        <RegistryValue Root="HKCU" Key="Software\Isai" Name="startmenu"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="DesktopShortcutComp">
+        <Shortcut Id="DesktopShortcut" Name="Isai"
+                  Target="[INSTALLFOLDER]Isai.exe"
+                  WorkingDirectory="INSTALLFOLDER" Icon="IsaiIcon" />
+        <RegistryValue Root="HKCU" Key="Software\Isai" Name="desktop"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="Isai" Level="1" AllowAbsent="no"
+             ConfigurableDirectory="INSTALLFOLDER"
+             Description="The Isai application.">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentGroupRef Id="WebView2Files" />
+    </Feature>
+    <Feature Id="StartMenuFeature" Title="Start Menu shortcut" Level="1"
+             Description="Add Isai to the Start Menu.">
+      <ComponentRef Id="StartMenuShortcutComp" />
+    </Feature>
+    <Feature Id="DesktopFeature" Title="Desktop shortcut" Level="1"
+             Description="Add an Isai shortcut to the desktop.">
+      <ComponentRef Id="DesktopShortcutComp" />
+    </Feature>
+
+    <CustomAction Id="InstallWebView2" FileRef="WebView2Setup"
+                  ExeCommand="/silent /install"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+    <InstallExecuteSequence>
+      <Custom Action="InstallWebView2" After="InstallFiles"
+              Condition="NOT Installed AND NOT WV2_MACHINE AND NOT WV2_USER" />
+    </InstallExecuteSequence>
+
+    <!-- setup screen with shortcut checkboxes, no licence page -->
+    <ui:WixUI Id="WixUI_FeatureTree" />
+    <UI>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog"
+               Value="CustomizeDlg" Order="5" Condition="NOT Installed" />
+      <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog"
+               Value="WelcomeDlg" Order="5" Condition="NOT Installed" />
+    </UI>
+  </Package>
+</Wix>
