@@ -53,6 +53,8 @@ jobs:
         run: |
           dotnet tool install --global wix --version 5.0.2
           wix extension add -g WixToolset.UI.wixext/5.0.2
+      - name: Installer art
+        run: python windows/make_installer_art.py
       - name: Build MSI
         shell: pwsh
         run: |
@@ -60,6 +62,8 @@ jobs:
           wix build -arch x64 -ext WixToolset.UI.wixext `
             -d "DistDir=$ws\dist\Isai" `
             -d "IconFile=$ws\windows\isai.ico" `
+            -d "DialogBmp=$ws\windows\installer\dialog.bmp" `
+            -d "BannerBmp=$ws\windows\installer\banner.bmp" `
             -d "Wv2Setup=$ws\MicrosoftEdgeWebview2Setup.exe" `
             -o "$ws\Isai-Setup.msi" `
             "$ws\windows\installer\Isai.wxs"

@@ -9,8 +9,12 @@
 
     <Icon Id="IsaiIcon" SourceFile="$(IconFile)" />
     <Property Id="ARPPRODUCTICON" Value="IsaiIcon" />
+    <WixVariable Id="WixUIDialogBmp" Value="$(DialogBmp)" />
+    <WixVariable Id="WixUIBannerBmp" Value="$(BannerBmp)" />
 
-    <!-- detect an existing WebView2 runtime -->
+    <Property Id="SHORTCUT_DESKTOP" Value="1" />
+    <Property Id="SHORTCUT_START" Value="1" />
+
     <Property Id="WV2_MACHINE">
       <RegistrySearch Id="Wv2Machine" Root="HKLM" Bitness="always64"
         Key="SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
@@ -26,12 +30,10 @@
       <Directory Id="INSTALLFOLDER" Name="Isai" />
     </StandardDirectory>
 
-    <!-- all PyInstaller output -->
     <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
       <Files Include="$(DistDir)\**" />
     </ComponentGroup>
 
-    <!-- WebView2 bootstrapper, run only if the runtime is missing -->
     <ComponentGroup Id="WebView2Files" Directory="INSTALLFOLDER">
       <Component Id="WebView2Bootstrapper">
         <File Id="WebView2Setup" Source="$(Wv2Setup)" />
@@ -39,7 +41,7 @@
     </ComponentGroup>
 
     <StandardDirectory Id="ProgramMenuFolder">
-      <Component Id="StartMenuShortcutComp">
+      <Component Id="StartMenuShortcutComp" Condition="SHORTCUT_START">
         <Shortcut Id="StartMenuShortcut" Name="Isai"
                   Target="[INSTALLFOLDER]Isai.exe"
                   WorkingDirectory="INSTALLFOLDER" Icon="IsaiIcon" />
@@ -49,7 +51,7 @@
     </StandardDirectory>
 
     <StandardDirectory Id="DesktopFolder">
-      <Component Id="DesktopShortcutComp">
+      <Component Id="DesktopShortcutComp" Condition="SHORTCUT_DESKTOP">
         <Shortcut Id="DesktopShortcut" Name="Isai"
                   Target="[INSTALLFOLDER]Isai.exe"
                   WorkingDirectory="INSTALLFOLDER" Icon="IsaiIcon" />
@@ -58,18 +60,10 @@
       </Component>
     </StandardDirectory>
 
-    <Feature Id="Main" Title="Isai" Level="1" AllowAbsent="no"
-             ConfigurableDirectory="INSTALLFOLDER"
-             Description="The Isai application.">
+    <Feature Id="Main" Title="Isai" Level="1" AllowAbsent="no">
       <ComponentGroupRef Id="AppFiles" />
       <ComponentGroupRef Id="WebView2Files" />
-    </Feature>
-    <Feature Id="StartMenuFeature" Title="Start Menu shortcut" Level="1"
-             Description="Add Isai to the Start Menu.">
       <ComponentRef Id="StartMenuShortcutComp" />
-    </Feature>
-    <Feature Id="DesktopFeature" Title="Desktop shortcut" Level="1"
-             Description="Add an Isai shortcut to the desktop.">
       <ComponentRef Id="DesktopShortcutComp" />
     </Feature>
 
@@ -81,13 +75,39 @@
               Condition="NOT Installed AND NOT WV2_MACHINE AND NOT WV2_USER" />
     </InstallExecuteSequence>
 
-    <!-- setup screen with shortcut checkboxes, no licence page -->
-    <ui:WixUI Id="WixUI_FeatureTree" />
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+
     <UI>
+      <Dialog Id="ShortcutsDlg" Width="370" Height="270" Title="Isai Setup">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44"
+                 TabSkip="no" Text="WixUI_Bmp_Banner" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="300" Height="15"
+                 Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Choose shortcuts" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="300" Height="15"
+                 Transparent="yes" NoPrefix="yes" Text="Select where Isai should be available." />
+        <Control Id="DesktopCheck" Type="CheckBox" X="30" Y="80" Width="300" Height="18"
+                 Property="SHORTCUT_DESKTOP" CheckBoxValue="1" Text="Create a &amp;desktop shortcut" />
+        <Control Id="StartCheck" Type="CheckBox" X="30" Y="108" Width="300" Height="18"
+                 Property="SHORTCUT_START" CheckBoxValue="1" Text="Add Isai to the &amp;Start Menu" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&amp;Back" />
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17"
+                 Default="yes" Text="&amp;Next" />
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17"
+                 Cancel="yes" Text="Cancel">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+      </Dialog>
+
       <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog"
-               Value="CustomizeDlg" Order="5" Condition="NOT Installed" />
-      <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog"
-               Value="WelcomeDlg" Order="5" Condition="NOT Installed" />
+               Value="ShortcutsDlg" Order="5" Condition="NOT Installed" />
+      <Publish Dialog="ShortcutsDlg" Control="Back" Event="NewDialog"
+               Value="WelcomeDlg" />
+      <Publish Dialog="ShortcutsDlg" Control="Next" Event="NewDialog"
+               Value="VerifyReadyDlg" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog"
+               Value="ShortcutsDlg" Order="5" Condition="NOT Installed" />
     </UI>
   </Package>
 </Wix>
