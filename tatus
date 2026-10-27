@@ -1,0 +1,27 @@
+warning: in the working copy of '.github/workflows/build-apk.yml', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/.github/workflows/build-apk.yml b/.github/workflows/build-apk.yml[m
+[1mindex bf1b2d7..7e0de10 100644[m
+[1m--- a/.github/workflows/build-apk.yml[m
+[1m+++ b/.github/workflows/build-apk.yml[m
+[36m@@ -25,7 +25,7 @@[m [mjobs:[m
+             echo "live site lacks the v2 shim or the server-logs screen - keeping the committed copy"[m
+           fi[m
+       - name: Icons[m
+[31m-        run: sudo apt-get update && sudo apt-get install -y imagemagick && bash tools/make_icons.sh[m
+[32m+[m[32m        run: sudo apt-get install -y imagemagick >/dev/null && bash tools/make_icons.sh[m
+       - name: Build[m
+         run: gradle assembleDebug --no-daemon[m
+       - uses: actions/upload-artifact@v4[m
+[1mdiff --git a/.gitignore b/.gitignore[m
+[1mindex 7a60b85..7293ed3 100644[m
+[1m--- a/.gitignore[m
+[1m+++ b/.gitignore[m
+[36m@@ -1,2 +1,7 @@[m
+ __pycache__/[m
+ *.pyc[m
+[32m+[m[32mwindows/ffmpeg/[m
+[32m+[m[32mwindows/isai.ico[m
+[32m+[m[32mbuild/[m
+[32m+[m[32mdist/[m
+[32m+[m[32m*.spec[m

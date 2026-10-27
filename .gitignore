@@ -1,2 +1,7 @@
 __pycache__/
 *.pyc
+windows/ffmpeg/
+windows/isai.ico
+build/
+dist/
+*.spec

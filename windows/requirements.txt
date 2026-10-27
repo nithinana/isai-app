@@ -1,0 +1,8 @@
+yt-dlp
+ytmusicapi
+fastapi==0.99.1
+pydantic>=1.10.17,<2
+uvicorn==0.30.6
+Pillow
+pywebview>=5.3
+pyinstaller>=6.10
