@@ -28,7 +28,7 @@ jobs:
       - name: Get ffmpeg
         run: |
           curl -fsSL -o ff.zip https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip
-          7z x ff.zip -offdl -y > /dev/null
+          7z x ff.zip -ofdl -y > /dev/null
           mkdir -p windows/ffmpeg
           cp fdl/*/bin/ffmpeg.exe fdl/*/bin/ffprobe.exe windows/ffmpeg/
           ls -l windows/ffmpeg
@@ -43,24 +43,4 @@ jobs:
             --add-data "app/src/main/assets;assets" \
             --add-data "windows/ffmpeg;ffmpeg" \
             windows/isai_desktop.py
-      - name: Smoke test (headless, real backend)
-        run: |
-          export ISAI_HEADLESS=1 APPDATA="$RUNNER_TEMP/appdata"
-          dist/Isai/Isai.exe > smoke.txt 2>&1 &
-          ok=0
-          for i in $(seq 1 60); do
-            if curl -fs http://127.0.0.1:8766/__app/ready | grep -q '"ready": true' && curl -fs http://127.0.0.1:8766/__app/info | grep -q '"api"'; then ok=1; break; fi
-            sleep 2
-          done
-          curl -s "http://127.0.0.1:8766/__app/logs?after=0" || true; echo
-          cat smoke.txt || true
-          [ "$ok" = 1 ] || { echo "backend never came up"; exit 1; }
-          curl -fs http://127.0.0.1:8766/ | grep -q "isai-desktop shim" || { echo "shim missing"; exit 1; }
-          curl -fs http://127.0.0.1:8766/__app/info
-          taskkill //F //IM Isai.exe //T > /dev/null 2>&1 || true
-      - name: Zip
-        run: 7z a Isai-windows.zip ./dist/Isai > /dev/null
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Isai-windows
-          path: Isai-windows.zip
+      - name: Smoke test (headless, real
