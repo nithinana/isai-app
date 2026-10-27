@@ -31,6 +31,17 @@ import urllib.parse
 import urllib.request
 import webbrowser
 
+# Windows: stop child processes (ffmpeg, yt-dlp helpers) from flashing console windows
+if sys.platform == "win32":
+    _orig_popen = subprocess.Popen
+
+    class _NoWindowPopen(_orig_popen):
+        def __init__(self, *a, **kw):
+            kw["creationflags"] = kw.get("creationflags", 0) | subprocess.CREATE_NO_WINDOW
+            super().__init__(*a, **kw)
+
+    subprocess.Popen = _NoWindowPopen
+
 SITE = "https://isai.thirai.uk"
 BACKEND_PORT = 8765
 UI_PORT = 8766
