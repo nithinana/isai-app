@@ -43,4 +43,9 @@ jobs:
             --add-data "app/src/main/assets;assets" \
             --add-data "windows/ffmpeg;ffmpeg" \
             windows/isai_desktop.py
-      - name: Smoke test (headless, real
+      - name: Zip
+        run: 7z a Isai-windows.zip ./dist/Isai > /dev/null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Isai-windows
+          path: Isai-windows.zip
