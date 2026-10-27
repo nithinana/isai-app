@@ -57,7 +57,7 @@ jobs:
         shell: pwsh
         run: |
           $ws = $env:GITHUB_WORKSPACE
-          wix build -arch x64 -sval -ext WixToolset.UI.wixext `
+          wix build -arch x64 -ext WixToolset.UI.wixext `
             -d "DistDir=$ws\dist\Isai" `
             -d "IconFile=$ws\windows\isai.ico" `
             -d "Wv2Setup=$ws\MicrosoftEdgeWebview2Setup.exe" `
