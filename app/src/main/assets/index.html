@@ -1455,6 +1455,9 @@ body.incog .incpill{display:inline-flex}
 .stl{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12.5px;color:var(--mute)}
 .stl b{color:var(--fg);font-weight:600;margin-left:3px}
 .stw{margin:10px 0 0;font-size:13px;color:#ffb454}
+.lfbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px}
+.lfbar .btn{padding:8px 16px;font-size:13px}
+.lfst{color:var(--mute);font-size:13px}
 .dlmode{display:flex;align-items:center;justify-content:space-between;gap:16px;border-radius:18px;padding:12px 16px;margin:0 0 14px}
 .dlmode b{display:block;font-size:15px;font-weight:600}
 .dlmode span{display:block;color:var(--mute);font-size:13px;margin-top:2px}
@@ -1901,7 +1904,7 @@ async function apiFB(path, body){
     let m = r.statusText;
     try { const d = await r.json(); m = d.detail || m; } catch {}
     const e = new Error(typeof m === 'string' ? m : 'Request was rejected'); e.status = r.status; last = e;
-    if ((r.status === 404 || r.status === 405) && i < bases.length - 1) continue;
+    if ([404, 405, 501, 502, 503].includes(r.status) && i < bases.length - 1) continue;
     throw e;
   }
   throw last;
@@ -1926,7 +1929,10 @@ const cov = (t, s = 320) => {
   if (!t.kind && t.id && extras[t.id] && extras[t.id].url) return extras[t.id].url;
   return rawCov(t, s);
 };
+const isLocalId = id => typeof id === 'string' && id.startsWith('local_');   // songs added from this device (see Local files)
+const LOCAL_ART = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3a3a4a"/><stop offset="1" stop-color="#1d1d26"/></linearGradient></defs><rect width="100" height="100" fill="url(#g)"/><path d="M42 30v30.2a9 9 0 1 0 6 8.5V42h14v-8H48v-4z" fill="#8d8d9c"/></svg>');
 const rawCov = (t, s = 320) => {
+  if (isLocalId(t.id)) return t.thumbnail || LOCAL_ART;
   if (s > 400 && slowNet()) s = 400;
   const u = t.thumbnail || '';
   if (GOOG.test(u)) return u.replace(/=[wsh]\d+[^/]*$/, `=w${s}-h${s}-l90-rj`);
@@ -2691,6 +2697,11 @@ function renderLiked(){
 function renderSettings(){
   const dsz = dls.reduce((n, d) => n + (d.size || 0), 0);
   $('main').innerHTML = `<div class="bkrow">${backBtn()}</div><div class="pg set"><h1 class="t">Settings</h1>
+    ${LF_OK ? `<section class="sgrp glass" id="sLocal"><h3>Local files</h3>
+      <div class="srow"><div><b>Add music from this device</b><span>Songs are copied into the app, so they play offline and work with playlists</span></div><button class="btn ghost" data-lf="files">Add files</button></div>
+      ${LF_DIR ? '<div class="srow"><div><b>Add a folder</b><span>Import every song inside a folder</span></div><button class="btn ghost" data-lf="dir">Add folder</button></div>' : ''}
+      <div class="srow"><div><b>Your local files</b><span>${lfCount()} song${lfCount() === 1 ? '' : 's'} added</span></div><button class="btn ghost" onclick="window.__openLocal()">Open</button></div>
+    </section>` : ''}
     <section class="sgrp glass" id="sInstRow" ${isInstalled() ? 'hidden' : ''}><h3>Get the app</h3>
       <div class="srow"><div><b>Install Isai</b><span>Android app (APK) or add to your iPhone Home Screen</span></div><button class="btn ghost" onclick="window.__openInstall()">Install</button></div>
     </section>
@@ -3539,7 +3550,7 @@ async function saveExtraLyrics(t, d){
   const rec = { id: t.id, cover: old.cover || null, lyrics: d, v: Math.max(old.v || 0, EXTRA_VER) };
   try { await idb.putExtra(rec); setExtra(rec); } catch {}
 }
-const missingExtras = () => dls.filter(t => !dlActive[t.id] && !(extras[t.id] && extras[t.id].v >= EXTRA_VER && extras[t.id].cover));
+const missingExtras = () => dls.filter(t => !isLocalId(t.id) && !dlActive[t.id] && !(extras[t.id] && extras[t.id].v >= EXTRA_VER && extras[t.id].cover));
 function paintExMig(){
   const t = $('updT'), i = $('updI');
   if (t) t.textContent = `Saving album art & lyrics · ${exMig.done}/${exMig.total}`;
@@ -3581,6 +3592,196 @@ async function saveWithExtras(t){
   if (ex && ex.lyrics) { const lrc = toLrc(ex.lyrics); if (lrc) { await new Promise(r => setTimeout(r, 450)); saveFile(new Blob([lrc], { type: 'text/plain;charset=utf-8' }), `${bn}.lrc`); } }
 }
 
+
+/* ---------- local files (Android + Windows app) ----------
+   Songs picked from the device are copied into the same on-device store as downloads, so they play offline, queue, like and
+   go into playlists like any other song. Title / artist / album / cover are read from the file's own tags (ID3, FLAC, MP4). */
+const NATIVE_OS = (() => { try { return String((window.IsaiNative && IsaiNative.platform && IsaiNative.platform()) || '').toLowerCase(); } catch { return ''; } })();
+const LF_OK = NATIVE_OS === 'android' || NATIVE_OS === 'windows';   // older app builds have no platform(): the option stays hidden there
+const LF_DIR = NATIVE_OS === 'windows';                              // Android's file chooser can't pick folders
+const LF_EXT = /\.(mp3|m4a|m4b|mp4|aac|flac|ogg|oga|opus|wav|weba|webm|aiff?|wma)$/i;
+const LF_ACCEPT = 'audio/*,.mp3,.m4a,.aac,.flac,.ogg,.oga,.opus,.wav,.weba,.aiff';
+const lfHash = str => { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0; return h.toString(36); };
+const lfDec = (b, enc) => {
+  try {
+    let label = enc === 3 ? 'utf-8' : enc === 1 ? 'utf-16le' : enc === 2 ? 'utf-16be' : 'windows-1252';
+    if (enc === 1 && b.length > 1 && b[0] === 0xFE && b[1] === 0xFF) label = 'utf-16be';   // BOM says big-endian
+    return new TextDecoder(label).decode(b).replace(/\uFEFF/g, '').replace(/\0+$/g, '').trim();
+  } catch { return ''; }
+};
+const lfImgType = b => b && b.length > 4 ? (b[0] === 0xFF && b[1] === 0xD8 ? 'image/jpeg' : b[0] === 0x89 && b[1] === 0x50 ? 'image/png' : b[0] === 0x52 && b[1] === 0x49 ? 'image/webp' : b[0] === 0x47 && b[1] === 0x49 ? 'image/gif' : '') : '';
+const lfCover = (out, bytes) => { const ty = lfImgType(bytes); if (ty && bytes.length > 500 && !out.cover) out.cover = new Blob([bytes], { type: ty }); };
+const lfAscii = (b, i, n) => String.fromCharCode.apply(null, b.subarray(i, i + n));
+
+function lfId3(buf, ver, out){
+  const v2 = ver === 2, hl = v2 ? 6 : 10;
+  let o = 0;
+  while (o + hl < buf.length) {
+    const id = lfAscii(buf, o, v2 ? 3 : 4);
+    if (!/^[A-Z0-9]+$/.test(id)) break;
+    const sz = v2 ? (buf[o + 3] << 16) | (buf[o + 4] << 8) | buf[o + 5]
+      : ver === 4 ? ((buf[o + 4] & 127) << 21) | ((buf[o + 5] & 127) << 14) | ((buf[o + 6] & 127) << 7) | (buf[o + 7] & 127)
+      : ((buf[o + 4] << 24) | (buf[o + 5] << 16) | (buf[o + 6] << 8) | buf[o + 7]) >>> 0;
+    const d = buf.subarray(o + hl, o + hl + sz);
+    o += hl + sz;
+    if (!sz) continue;
+    if (d.length < sz) break;
+    const key = { TT2: 'TIT2', TP1: 'TPE1', TAL: 'TALB', PIC: 'APIC' }[id] || id;
+    if (key === 'TIT2' || key === 'TPE1' || key === 'TALB') {
+      const enc = d[0], bytes = d.subarray(1);
+      const txt = (enc === 1 || enc === 2) ? lfDec(bytes, enc).split('\0').filter(Boolean).join(', ') : lfDec(bytes, enc).split('\0').filter(Boolean).join(', ');
+      if (txt) out[key === 'TIT2' ? 'title' : key === 'TPE1' ? 'artist' : 'album'] = txt;
+    } else if (key === 'APIC' && !out.cover) {
+      const enc = d[0]; let i = 1;
+      if (v2) i += 3; else { while (i < d.length && d[i] !== 0) i++; i++; }   // mime type
+      i++;                                                                      // picture type
+      if (enc === 1 || enc === 2) { while (i + 1 < d.length && !(d[i] === 0 && d[i + 1] === 0)) i += 2; i += 2; }
+      else { while (i < d.length && d[i] !== 0) i++; i++; }
+      lfCover(out, d.subarray(i));
+    }
+  }
+}
+function lfFlacBlock(type, d, out){
+  const dv = new DataView(d.buffer, d.byteOffset, d.byteLength);
+  if (type === 4) {
+    let o = 4 + dv.getUint32(0, true); const n = dv.getUint32(o, true); o += 4;
+    for (let k = 0; k < n && o + 4 <= d.length; k++) {
+      const l = dv.getUint32(o, true); o += 4;
+      const kv = lfDec(d.subarray(o, o + l), 3); o += l;
+      const i = kv.indexOf('='); if (i < 0) continue;
+      const key = kv.slice(0, i).toUpperCase(), val = kv.slice(i + 1);
+      if (key === 'TITLE') out.title = out.title || val;
+      else if (key === 'ARTIST') out.artist = out.artist ? out.artist + ', ' + val : val;
+      else if (key === 'ALBUM') out.album = out.album || val;
+    }
+  } else if (type === 6) {
+    let o = 4; const ml = dv.getUint32(o); o += 4 + ml; const dl = dv.getUint32(o); o += 4 + dl + 16;
+    const n = dv.getUint32(o); o += 4; lfCover(out, d.subarray(o, o + n));
+  }
+}
+function lfMp4Find(b, s, e, want){
+  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  while (s + 8 <= e) {
+    let sz = dv.getUint32(s), hs = 8;
+    const ty = String.fromCharCode(b[s + 4], b[s + 5], b[s + 6], b[s + 7]);
+    if (sz === 1) { sz = Number(dv.getBigUint64(s + 8)); hs = 16; } else if (sz === 0) sz = e - s;
+    if (sz < hs || s + sz > e) return null;
+    if (ty === want) return [s + hs, s + sz];
+    s += sz;
+  }
+  return null;
+}
+function lfMp4Ilst(moov, out){
+  const ud = lfMp4Find(moov, 0, moov.length, 'udta'); if (!ud) return;
+  const mt = lfMp4Find(moov, ud[0], ud[1], 'meta'); if (!mt) return;
+  const il = lfMp4Find(moov, mt[0] + 4, mt[1], 'ilst'); if (!il) return;
+  const A9 = String.fromCharCode(0xA9);
+  for (const [name, field] of [[A9 + 'nam', 'title'], [A9 + 'ART', 'artist'], ['aART', 'albumartist'], [A9 + 'alb', 'album'], ['covr', 'cover']]) {
+    const it = lfMp4Find(moov, il[0], il[1], name); if (!it) continue;
+    const da = lfMp4Find(moov, it[0], it[1], 'data'); if (!da) continue;
+    const bytes = moov.subarray(da[0] + 8, da[1]);
+    if (field === 'cover') lfCover(out, bytes); else { const v = lfDec(bytes, 3); if (v) out[field] = v; }
+  }
+  if (!out.artist && out.albumartist) out.artist = out.albumartist;
+}
+async function lfTags(file){
+  const out = {};
+  try {
+    const head = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+    if (lfAscii(head, 0, 3) === 'ID3') {
+      const ver = head[3], size = ((head[6] & 127) << 21) | ((head[7] & 127) << 14) | ((head[8] & 127) << 7) | (head[9] & 127);
+      let buf = new Uint8Array(await file.slice(10, 10 + Math.min(size, 16 * 1048576)).arrayBuffer());
+      if (head[5] & 0x40) { const x = ver === 4 ? ((buf[0] & 127) << 21) | ((buf[1] & 127) << 14) | ((buf[2] & 127) << 7) | (buf[3] & 127) : 4 + ((buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3]); buf = buf.subarray(x); }
+      lfId3(buf, ver, out);
+    } else if (lfAscii(head, 0, 4) === 'fLaC') {
+      let o = 4;
+      for (let n = 0; n < 40; n++) {
+        const h = new Uint8Array(await file.slice(o, o + 4).arrayBuffer()); if (h.length < 4) break;
+        const last = h[0] & 128, type = h[0] & 127, len = (h[1] << 16) | (h[2] << 8) | h[3];
+        if ((type === 4 || type === 6) && len < 16 * 1048576) lfFlacBlock(type, new Uint8Array(await file.slice(o + 4, o + 4 + len).arrayBuffer()), out);
+        o += 4 + len; if (last) break;
+      }
+    } else if (lfAscii(head, 4, 4) === 'ftyp') {
+      let o = 0;
+      for (let n = 0; n < 64; n++) {
+        const h = new Uint8Array(await file.slice(o, o + 16).arrayBuffer()); if (h.length < 8) break;
+        const dv = new DataView(h.buffer); let sz = dv.getUint32(0), hs = 8; const ty = lfAscii(h, 4, 4);
+        if (sz === 1 && h.length >= 16) { sz = Number(dv.getBigUint64(8)); hs = 16; } else if (sz === 0) sz = file.size - o;
+        if (sz < hs) break;
+        if (ty === 'moov') { if (sz < 24 * 1048576) lfMp4Ilst(new Uint8Array(await file.slice(o + hs, o + sz).arrayBuffer()), out); break; }
+        o += sz;
+      }
+    }
+  } catch {}
+  return out;
+}
+function lfFromName(name){
+  const base = name.replace(/\.[^.]+$/, '').replace(/_/g, ' ').replace(/^\s*\d{1,3}\s*[-._)]\s*/, '').trim();
+  const i = base.indexOf(' - ');
+  return i > 0 ? { artist: base.slice(0, i).trim(), title: base.slice(i + 3).trim() || base } : { artist: '', title: base || name };
+}
+function lfDuration(file){
+  return new Promise(res => {
+    const u = URL.createObjectURL(file), el = new Audio(); let t;
+    const done = d => { clearTimeout(t); el.onloadedmetadata = el.onerror = null; el.removeAttribute('src'); try { el.load(); } catch {} URL.revokeObjectURL(u); res(d); };
+    el.preload = 'metadata';
+    el.onloadedmetadata = () => done(isFinite(el.duration) ? el.duration : 0);
+    el.onerror = () => done(null);                              // this device can't play the format
+    t = setTimeout(() => done(0), 8000);
+    el.src = u;
+  });
+}
+const lfCount = () => dls.filter(d => isLocalId(d.id)).length;
+const lfBar = () => `<div class="lfbar"><button class="btn" data-lf="files">${ic('plus', 16)}<span>Add files</span></button>${LF_DIR ? '<button class="btn ghost" data-lf="dir"><span>Add folder</span></button>' : ''}<span class="lfst" id="lfst"></span></div>`;
+const lfStatus = txt => { const el = $('lfst'); if (el) el.textContent = txt || ''; };
+let lfBusy = false;
+async function addLocalFiles(list){
+  const files = [...list].filter(f => LF_EXT.test(f.name) || /^audio\//.test(f.type));
+  if (!files.length) return toast('No audio files found', true);
+  if (lfBusy) return toast('Still adding songs, one moment');
+  lfBusy = true;
+  let ok = 0, dup = 0, bad = 0;
+  if (!$('lfst')) toast(files.length > 1 ? `Adding ${files.length} songs…` : 'Adding song…');
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    lfStatus(`Adding ${i + 1} of ${files.length}…`);
+    try {
+      const id = 'local_' + lfHash(f.name + '|' + f.size) + lfHash(String(f.lastModified || 0) + '|' + f.size + '|' + f.name.length);
+      if (dls.some(d => d.id === id)) { dup++; continue; }
+      const dur = await lfDuration(f);
+      if (dur === null) { bad++; continue; }
+      const tg = await lfTags(f), fb = lfFromName(f.name);
+      const meta = { id, title: tg.title || fb.title, artist: tg.artist || fb.artist || '', album: tg.album || '', duration: dur, fmt: ((f.name.match(/\.([^.]+)$/) || [])[1] || '').toLowerCase(), size: f.size, ts: Date.now() + i, file: f.name, local: true };
+      await idb.put(meta, f);
+      if (tg.cover) { const rec = { id, cover: tg.cover, lyrics: null, v: EXTRA_VER }; try { await idb.putExtra(rec); setExtra(rec); } catch {} }
+      dls = [meta, ...dls.filter(d => d.id !== id)];
+      ok++;
+    } catch { bad++; }
+  }
+  lfBusy = false; lfStatus('');
+  const parts = [];
+  if (ok) parts.push(`Added ${ok} song${ok === 1 ? '' : 's'}`);
+  if (dup) parts.push(`${dup} already added`);
+  if (bad) parts.push(`${bad} couldn't be added`);
+  toast(parts.join(' · ') || 'Nothing added', !ok && !dup);
+  if (ok) { try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch {} }
+  if (view === 'downloads') renderDownloads(); else if (view === 'settings') renderSettings();
+  syncBadges();
+}
+const lfMkInput = dir => {
+  const el = document.createElement('input');
+  el.type = 'file'; el.multiple = true; el.hidden = true; el.accept = LF_ACCEPT;
+  if (dir) { el.setAttribute('webkitdirectory', ''); el.removeAttribute('accept'); }
+  el.addEventListener('change', () => { const l = [...el.files]; el.value = ''; if (l.length) addLocalFiles(l); });
+  document.body.appendChild(el); return el;
+};
+let lfIn = null, lfDirIn = null;
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-lf]'); if (!b || !LF_OK) return;
+  if (b.dataset.lf === 'dir' && LF_DIR) (lfDirIn || (lfDirIn = lfMkInput(true))).click(); else (lfIn || (lfIn = lfMkInput(false))).click();
+});
+window.__openLocal = () => { store.set('dlsort', 'local'); dlQ = ''; show('downloads'); };
+
 /* ---------- download ---------- */
 const fmtSize = b => !b ? '' : b >= 1073741824 ? (b / 1073741824).toFixed(2) + ' GB' : b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
 const fmtDate = ts => { const d = new Date(ts), n = new Date(); return d.toDateString() === n.toDateString() ? 'Today ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }); };
@@ -3602,6 +3803,7 @@ function dlProgress(id){
   });
 }
 async function download(t, btn, quiet, job){
+  if (isLocalId(t.id)) { if (!quiet) toast('Local files live on the device they were added on'); return false; }
   if (dlActive[t.id]) { if (!quiet) toast('Already downloading'); return false; }
   const f = store.get('fmt', 'mp3'), a = dlActive[t.id] = { t: slim(t), loaded: 0, total: 0, fmt: f, job: job || null };
   if (btn) btn.disabled = true;
@@ -3641,7 +3843,7 @@ async function download(t, btn, quiet, job){
   return ok;
 }
 
-const dlSorts = { home: 'Home', recent: 'Recent', track: 'Songs', playlist: 'Playlists', album: 'Albums', artist: 'Artists' };
+const dlSorts = { home: 'Home', recent: 'Recent', track: 'Songs', playlist: 'Playlists', album: 'Albums', artist: 'Artists', local: 'Local files' };
 let dlQ = '', dlFocus = false;
 const lc = (a, b) => String(a || '').localeCompare(String(b || ''), undefined, { sensitivity: 'base', numeric: true });
 const mainArtist = t => (artistsOf(t)[0] || {}).name || '';
@@ -3651,7 +3853,9 @@ const dlPlaylists = jget('dlplaylists', {});
 function saveDlPlaylists(){ try { localStorage.setItem('dlplaylists', JSON.stringify(dlPlaylists)); } catch {} }
 
 function sortDls(mode){
+  if (mode === 'local' && !LF_OK) mode = 'recent';
   const l = dls.slice();
+  if (mode === 'local') return l.filter(t => isLocalId(t.id)).sort((a, b) => lc(a.artist, b.artist) || lc(a.album, b.album) || lc(a.title, b.title));
   if (mode === 'track') l.sort((a, b) => lc(a.title, b.title));
   else if (mode === 'album') l.sort((a, b) => lc(a.album || '\uffff', b.album || '\uffff') || lc(a.title, b.title));
   else if (mode === 'artist') l.sort((a, b) => lc(mainArtist(a) || '\uffff', mainArtist(b) || '\uffff') || lc(a.album, b.album) || lc(a.title, b.title));
@@ -3662,8 +3866,8 @@ function sortDls(mode){
 const dlrow = (t, i) => `<div class="qr lrow dlrow ${current && current.id === t.id ? 'cur' : ''}" data-i="${i}" data-id="${esc(t.id)}">
   <div class="qt">${imgTag(t, 160)}<span class="qp">${ic('play', 18)}</span></div>
   <div class="qm"><b>${esc(t.title)}</b><span>${artistLinks(t)}${t.album ? ' · ' + esc(t.album) : ''}</span>
-    <span class="dlm">${esc((t.fmt || '').toUpperCase())}${t.size ? ' · ' + fmtSize(t.size) : ''} · ${fmtDate(t.ts)}</span></div>
-  <span class="qa"><button data-a="save" title="Save file to device">${ic('dl', 18)}</button><button data-a="rmdl" title="Delete download">${ic('x', 18)}</button></span>
+    <span class="dlm">${isLocalId(t.id) ? 'LOCAL · ' : ''}${esc((t.fmt || '').toUpperCase())}${t.size ? ' · ' + fmtSize(t.size) : ''} · ${fmtDate(t.ts)}</span></div>
+  <span class="qa"><button data-a="save" title="Save file to device">${ic('dl', 18)}</button><button data-a="rmdl" title="${isLocalId(t.id) ? 'Remove from the app' : 'Delete download'}">${ic('x', 18)}</button></span>
   <em>${t.duration ? fmt(t.duration) : ''}</em></div>`;
 
 const dlGroups = {};
@@ -3688,6 +3892,7 @@ function openDlGroup(id){
 let dlRowsLast = '', dlSoftT = 0;
 function dlRowsHtml(items, mode, q){
   let rows = '';
+  if (mode === 'local' && LF_OK && !q && dlsReady) return lfBar() + (items.length ? items.map(dlrow).join('') : '<p class="qmsg">No local files yet. Add songs from this device and they will play here, offline, alongside your downloads.</p>');
   if (!dlsReady) rows = '<p class="qmsg">Loading…</p>';
   else if (!items.length && q) rows = `<p class="qmsg">No downloads match “${esc(dlQ)}”.</p>`;
   else if (!items.length && !isOnline()) rows = '<div class="offmsg"><b>You\'re offline</b>You have no downloaded songs yet. Reconnect and tap the download icon on any song to keep it for offline listening.</div>';
@@ -3798,7 +4003,7 @@ function renderDownloads(){
     <div class="dlmode dlautor glass" id="dlAutoRow" role="button" tabindex="0" aria-label="Edit auto-download playlists"><div><b>Auto</b><span>${autoOn() ? (autoPlIds().size ? `${autoPlIds().size} playlist${autoPlIds().size === 1 ? '' : 's'} · tap to edit` : 'No playlists chosen · tap to choose') : 'Off · tap to choose playlists'}</span></div><button class="sw" id="dlAuto" role="switch" aria-label="Auto download" aria-checked="${autoOn()}"></button></div>
     ${isOnline() ? '' : `<div class="offb"><i></i>${MODE.off ? 'Offline mode' : 'You\'re offline'} · playing from your downloads</div>`}
     <label class="dlq">${ic('search', 18)}<input id="dlq" placeholder="Search your downloads" autocomplete="off" value="${esc(dlQ)}"></label>
-    <div class="dltabs">${Object.entries(dlSorts).map(([k, v]) => `<button class="pill ${k === mode && !q ? 'on' : ''}" data-dlsort="${k}">${v}</button>`).join('')}</div>
+    <div class="dltabs">${Object.entries(dlSorts).filter(([k]) => k !== 'local' || LF_OK).map(([k, v]) => `<button class="pill ${k === mode && !q ? 'on' : ''}" data-dlsort="${k}">${v}</button>`).join('')}</div>
     <div id="dlSum"></div>
     <div id="dlRows">${rows}</div></div>`;
   $('dlOff').onclick = () => setOffMode(!MODE.off);
@@ -3810,7 +4015,7 @@ function renderDownloads(){
   if (dlFocus) { dq.focus(); dq.setSelectionRange(dq.value.length, dq.value.length); dlFocus = false; }
   const c = $('dlClear');
   if (c) c.onclick = async () => {
-    if (!(await askConfirm({ title: 'Delete all downloads?', msg: 'All downloaded songs will be removed from this device.', ok: 'Delete all', danger: true }))) return;
+    if (!(await askConfirm({ title: 'Delete all downloads?', msg: dls.some(d => isLocalId(d.id)) ? 'All downloaded songs and local files will be removed from this app. Your original files stay where they are.' : 'All downloaded songs will be removed from this device.', ok: 'Delete all', danger: true }))) return;
     try { await idb.clear(); dropAllExtras(); dls = []; for (const k in artProf) delete artProf[k]; for (const k in dlPlaylists) delete dlPlaylists[k]; saveDlPlaylists(); } catch (e) { toast(e.message, true); }
     renderDownloads();
   };
@@ -3865,7 +4070,7 @@ function loadArtProfiles(){
 }
 function missingArtists(){
   const m = new Map();
-  dls.forEach(t => { const a = artistsOf(t)[0]; const n = a && a.name; if (!n) return; const k = akey(n); if (!artProf[k] && !m.has(k)) m.set(k, { key: k, name: n, id: a.id }); });
+  dls.forEach(t => { if (isLocalId(t.id)) return; const a = artistsOf(t)[0]; const n = a && a.name; if (!n) return; const k = akey(n); if (!artProf[k] && !m.has(k)) m.set(k, { key: k, name: n, id: a.id }); });
   return [...m.values()];
 }
 async function saveProfile(rec){
@@ -5385,7 +5590,7 @@ function openAutoPick(){
   };
 }
 function downloadAll(tracks, label, plMeta, auto){
-  const todo = (tracks || []).filter((t, i, arr) => t && t.id && !dls.some(d => d.id === t.id) && arr.findIndex(x => x.id === t.id) === i
+  const todo = (tracks || []).filter((t, i, arr) => t && t.id && !isLocalId(t.id) && !dls.some(d => d.id === t.id) && arr.findIndex(x => x.id === t.id) === i
     && !(auto && (autoFailed.has(t.id) || autoIgnored.has(t.id) || dlActive[t.id])));
   if (!todo.length) return auto ? 0 : toast('Everything here is already downloaded');
   const pid = plMeta && plMeta.id;

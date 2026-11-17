@@ -349,6 +349,7 @@ SHIM = r"""<script>/* isai-desktop shim: IsaiNative for Windows */
   }
 
   window.IsaiNative = {
+    platform: function(){ return 'windows'; },
     backendInfo: function(){ return x('GET', '/__app/info'); },
     serverLogs: function(after){ return x('GET', '/__app/logs?after=' + Math.floor(after || 0)); },
     restartServer: function(){ x('POST', '/__app/restart'); },

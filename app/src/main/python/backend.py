@@ -62,7 +62,7 @@ try:
 except ImportError:  # covers still work, just without auto-cropping
     Image = ImageChops = None
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 from starlette.background import BackgroundTask
@@ -211,7 +211,7 @@ app = FastAPI(title="YouTube Music API", version="1.0.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST", "OPTIONS"],   # POST: /spotify/match
     allow_headers=["*"],
     expose_headers=["Content-Disposition"],
 )
@@ -2980,6 +2980,199 @@ def import_playlist(
         "kind": "playlist", "id": pid, "title": title or "Imported playlist",
         "thumbnail": thumbnail, "track_count": len(uniq), "tracks": uniq,
     }
+
+
+# ---- Spotify import (public links, no login) ---------------------------------------
+# Reads the public embed page Spotify serves for playlists / albums / songs, then matches each song on YouTube Music.
+import json as _sjson
+import difflib
+import unicodedata
+
+SP_LINK_RE = re.compile(r"(?:open\.spotify\.com/(?:intl-[\w-]+/)?(?:embed/)?|spotify:)(playlist|album|track)[/:]([A-Za-z0-9]{10,32})")
+SP_UA = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+    "Accept-Language": "en",
+}
+
+
+def _sp_get(url: str, timeout: int = 15):
+    """Returns (final_url, text). Follows redirects (spotify.link short links)."""
+    with urlopen(UrlRequest(url, headers=SP_UA), timeout=timeout) as r:
+        return r.geturl(), r.read().decode("utf-8", "replace")
+
+
+def _sp_parse_link(url: str):
+    url = (url or "").strip()
+    m = SP_LINK_RE.search(url)
+    if not m and re.match(r"^https?://(spotify\.link|spoti\.fi)/", url):
+        try:
+            final, _ = _sp_get(url, 10)
+            m = SP_LINK_RE.search(final)
+        except Exception:
+            m = None
+    if not m:
+        raise HTTPException(400, "That doesn't look like a Spotify playlist, album or song link.")
+    return m.group(1), m.group(2)
+
+
+def _sp_next_data(html: str):
+    m = re.search(r'<script[^>]+id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.S)
+    if not m:
+        return None
+    try:
+        return _sjson.loads(m.group(1))
+    except Exception:
+        return None
+
+
+def _sp_find_entity(data):
+    """The embed JSON has moved around over the years; find the object that has a trackList / name."""
+    try:
+        e = data["props"]["pageProps"]["state"]["data"]["entity"]
+        if isinstance(e, dict):
+            return e
+    except Exception:
+        pass
+    stack = [data]
+    while stack:
+        x = stack.pop()
+        if isinstance(x, dict):
+            if isinstance(x.get("trackList"), list):
+                return x
+            stack.extend(x.values())
+        elif isinstance(x, list):
+            stack.extend(x)
+    return None
+
+
+def _sp_split_artists(s):
+    if not s:
+        return []
+    return [a.strip() for a in re.split(r",\s*|\s+&\s+|\u00a0", str(s).replace("\u00a0", " ")) if a and a.strip()]
+
+
+def _sp_dur(v):
+    if isinstance(v, (int, float)) and v > 0:
+        return int(round(v / 1000)) if v > 10000 else int(v)   # embed gives milliseconds
+    return None
+
+
+def _sp_cover(e):
+    for key in ("coverArt", "visualIdentity"):
+        c = e.get(key)
+        if isinstance(c, dict):
+            srcs = c.get("sources") or c.get("image") or []
+            srcs = [s for s in srcs if isinstance(s, dict) and s.get("url")]
+            if srcs:
+                return max(srcs, key=lambda s: s.get("width") or 0)["url"]
+    return None
+
+
+@app.get("/spotify/import", dependencies=[Depends(require_key)])
+def spotify_import(url: str = Query(..., min_length=3)):
+    kind, sid = _sp_parse_link(url)
+    try:
+        _, html = _sp_get(f"https://open.spotify.com/embed/{kind}/{sid}")
+    except HTTPError as e:
+        if e.code in (403, 404):
+            raise HTTPException(404, "Couldn't read that Spotify link. Make sure the playlist is public.")
+        raise HTTPException(502, f"Spotify returned an error ({e.code}). Try again in a moment.")
+    except Exception:
+        raise HTTPException(502, "Couldn't reach Spotify. Check your connection and try again.")
+    data = _sp_next_data(html)
+    ent = _sp_find_entity(data) if data else None
+    if not ent:
+        raise HTTPException(502, "Spotify's page didn't have the song list in the expected place. Use the data-export option instead.")
+    title = ent.get("name") or ent.get("title") or {"playlist": "Spotify playlist", "album": "Spotify album", "track": "Spotify song"}[kind]
+    thumb = _sp_cover(ent)
+    tracks = []
+    tl = ent.get("trackList")
+    if isinstance(tl, list):
+        for t in tl:
+            if not isinstance(t, dict) or not t.get("title"):
+                continue
+            tracks.append({
+                "title": str(t["title"]).strip(),
+                "artists": _sp_split_artists(t.get("subtitle")),
+                "album": ent.get("name") if kind == "album" else None,
+                "duration": _sp_dur(t.get("duration")),
+            })
+    elif kind == "track" and (ent.get("name") or ent.get("title")):
+        arts = ent.get("artists")
+        names = [a.get("name") for a in arts if isinstance(a, dict) and a.get("name")] if isinstance(arts, list) else _sp_split_artists(ent.get("subtitle"))
+        tracks.append({"title": str(ent.get("name") or ent.get("title")).strip(), "artists": names, "album": None, "duration": _sp_dur(ent.get("duration"))})
+    if not tracks:
+        raise HTTPException(404, "No songs found. The playlist may be private or empty.")
+    return {
+        "kind": kind, "id": sid, "title": title, "thumbnail": thumb,
+        "track_count": len(tracks), "tracks": tracks,
+        # the embed only lists the first ~100 songs of a playlist
+        "maybe_partial": kind == "playlist" and len(tracks) >= 100,
+    }
+
+
+def _sp_norm(s: str) -> str:
+    s = unicodedata.normalize("NFKD", str(s or "")).encode("ascii", "ignore").decode().lower()
+    s = re.sub(r"[\(\[][^\)\]]*(feat|ft\.|with|remaster|live|version|edit|mix|from)[^\)\]]*[\)\]]", " ", s)
+    s = re.sub(r"\s+-\s+(.*(remaster|live|version|edit|mix|from).*)$", " ", s)
+    s = re.sub(r"\b(feat|ft)\.?\b.*$", " ", s)
+    return re.sub(r"[^a-z0-9]+", " ", s).strip()
+
+
+def _sp_score(want: dict, cand: dict) -> float:
+    wt, ct = _sp_norm(want.get("title")), _sp_norm(cand.get("title"))
+    if not wt or not ct:
+        return 0.0
+    tsim = difflib.SequenceMatcher(None, wt, ct).ratio()
+    if wt in ct or ct in wt:
+        tsim = max(tsim, 0.85)
+    if tsim < 0.55:
+        return 0.0          # same artist but a different song: never a match
+    wa = {_sp_norm(a) for a in (want.get("artists") or []) if a}
+    ca = {_sp_norm(a.get("name")) for a in (cand.get("artists") or []) if isinstance(a, dict)} or {_sp_norm(cand.get("artist"))}
+    if wa and ca:
+        hit = any(a and (a in c or c in a) for a in wa for c in ca if c)
+        asim = 1.0 if hit else max((difflib.SequenceMatcher(None, a, c).ratio() for a in wa for c in ca), default=0.0) * 0.8
+    else:
+        asim = 0.5
+    wd, cd = want.get("duration"), cand.get("duration")
+    dsim = 0.6 if not (wd and cd) else (1.0 if abs(wd - cd) <= 3 else 0.8 if abs(wd - cd) <= 8 else 0.4 if abs(wd - cd) <= 20 else 0.0)
+    return round(0.5 * tsim + 0.35 * asim + 0.15 * dsim, 3)
+
+
+def _sp_match_one(t: dict):
+    title = str(t.get("title") or "").strip()
+    arts = [a for a in (t.get("artists") or []) if a]
+    if not title:
+        return {"match": None, "score": 0}
+    q = f"{title} {arts[0]}" if arts else title
+    cands = []
+    try:
+        if YTMusic is not None:
+            raw = ytm().search(q, filter="songs", limit=6, ignore_spelling=True)
+            cands = [c for c in map(_track, _audio_only(raw)) if c]
+        else:
+            cands = [c for c in _search_songs_ytdlp(q, 6) if c]
+    except Exception:
+        return {"match": None, "score": 0, "error": True}
+    best, bs = None, 0.0
+    for c in cands:
+        s = _sp_score(t, c)
+        if s > bs:
+            best, bs = c, s
+    if best is None or bs < 0.5:
+        return {"match": None, "score": bs}
+    return {"match": best, "score": bs}
+
+
+@app.post("/spotify/match", dependencies=[Depends(require_key)])
+def spotify_match(payload: dict = Body(...)):
+    tracks = payload.get("tracks") if isinstance(payload, dict) else None
+    if not isinstance(tracks, list) or len(tracks) > 60:
+        raise HTTPException(400, "Send up to 60 tracks per request.")
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        results = list(ex.map(lambda t: _sp_match_one(t if isinstance(t, dict) else {}), tracks))
+    return {"results": results}
 
 
 # ---- Lyrics (Unison + lrc.red) ----------------------------------------------------

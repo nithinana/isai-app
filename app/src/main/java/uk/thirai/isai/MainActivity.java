@@ -12,6 +12,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -42,6 +44,8 @@ public class MainActivity extends Activity {
     private FrameLayout root;
     private FrameLayout splash;
     private MediaBridge media;
+    private static final int REQ_FILES = 4243;                  // "Local files" picker
+    private ValueCallback<Uri[]> fileCb;
     private volatile boolean forceBundled = false;   // serve the bundled copy of the site (same origin)
 
     @Override
@@ -89,6 +93,28 @@ public class MainActivity extends Activity {
 
         media = new MediaBridge(this, web);
         web.addJavascriptInterface(media, "IsaiNative");
+
+        // File chooser for <input type=file>: without this the WebView ignores the tap (Settings > Local files).
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams params) {
+                if (fileCb != null) fileCb.onReceiveValue(null);      // a previous chooser never answered: release it
+                fileCb = cb;
+                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("*/*");
+                i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"audio/*", "application/ogg", "application/x-flac", "application/octet-stream"});
+                i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE);
+                try {
+                    startActivityForResult(i, REQ_FILES);
+                } catch (Exception e) {
+                    fileCb = null;
+                    cb.onReceiveValue(null);
+                    return false;
+                }
+                return true;
+            }
+        });
 
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -184,6 +210,23 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
+        if (req == REQ_FILES) {
+            if (fileCb != null) {
+                Uri[] out = null;
+                if (res == RESULT_OK && data != null) {
+                    if (data.getClipData() != null) {
+                        int n = data.getClipData().getItemCount();
+                        out = new Uri[n];
+                        for (int k = 0; k < n; k++) out[k] = data.getClipData().getItemAt(k).getUri();
+                    } else if (data.getData() != null) {
+                        out = new Uri[]{data.getData()};
+                    }
+                }
+                fileCb.onReceiveValue(out);
+                fileCb = null;
+            }
+            return;
+        }
         if (media != null && media.onActivityResult(req, res, data)) return;   // "Save as" dialog result
         super.onActivityResult(req, res, data);
     }

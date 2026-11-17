@@ -103,6 +103,10 @@ public class MediaBridge {
     @JavascriptInterface
     public String backendInfo() { return backendInfo; }
 
+    /** Lets the page know which app it is in (it shows Local files only in the Android and Windows apps). */
+    @JavascriptInterface
+    public String platform() { return "android"; }
+
     void setBackendInfo(String info) { backendInfo = info == null ? "" : info; }
 
     /** Server log screen (app only): lines newer than `after` plus the server state, as JSON. */
