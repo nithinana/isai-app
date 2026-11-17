@@ -365,11 +365,7 @@ h3.sec{margin:10px 12px 8px;font-size:22px;font-weight:800}
   #npv.lyclean .npr{justify-self:center;width:min(820px,100%)}
 }
 @media(max-width:720px){
-  #lyclean{top:calc(var(--sat) + 38px);right:68px}
-  #npv:not(.lyfull) #lyclean{display:none!important}
-  #npv.lyclean.lyshow .npcard{opacity:0;pointer-events:none;transition:opacity .3s var(--ease)}
-  #npv.lyclean.lyshow .npr{bottom:calc(var(--sab) + 24px)}
-  #npv.lyclean.lyshow #npq.lyr{padding-bottom:50%}
+  #lyclean{display:none!important}   /* no clean/fullscreen toggle on phones; the saved clean-view flag is ignored here */
 }
 .grab{display:none}
 .tabs{display:flex;border-bottom:1px solid rgba(255,255,255,.14)}
@@ -1408,30 +1404,59 @@ html{scroll-behavior:smooth}
 .lychips button.tlb{margin-left:4px}
 </style>
 <style>
-#instpage{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.66);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
-#instpage.on{display:flex}
+#instpage{position:fixed;inset:0;z-index:100000;display:none;align-items:flex-start;justify-content:center;padding:calc(20px + var(--sat)) 20px calc(20px + var(--sab));overflow:auto;overscroll-behavior:contain;
+  background:radial-gradient(1100px 650px at 12% -8%,var(--c1),transparent 62%),radial-gradient(900px 600px at 100% 8%,var(--c2),transparent 60%),linear-gradient(180deg,var(--c3) 0%,var(--bg) 78%),var(--bg)}
+#instpage.on{display:flex;animation:mfade .35s var(--ease) both}
 #instpage [hidden],#sInstRow[hidden]{display:none!important}
-#instpage .ibox{width:100%;max-width:400px;max-height:92vh;overflow:auto;overscroll-behavior:contain;background:rgba(22,22,28,.96);border:1px solid rgba(255,255,255,.1);border-radius:26px;padding:30px 22px 22px;position:relative;box-shadow:0 30px 80px rgba(0,0,0,.55);animation:mpop .42s var(--ease) both}
-#instpage .ix{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.07);color:var(--mute);font-size:14px;display:grid;place-items:center;transition:background-color .25s var(--ease),color .25s var(--ease)}
-#instpage .ix:hover{background:rgba(255,255,255,.14);color:#fff}
-#instpage .ihead{text-align:center;margin-bottom:22px}
-#instpage .ihead img{width:64px;height:64px;border-radius:15px;margin:0 auto 14px;box-shadow:0 10px 28px rgba(0,0,0,.45)}
-#instpage h2{font-size:21px;font-weight:800;letter-spacing:-.01em;margin:0 0 4px}
-#instpage .ihead p{color:var(--mute);font-size:13px;margin:0}
-#instpage .icard{padding:18px 0 0;margin-top:18px;border-top:1px solid rgba(255,255,255,.08)}
-#instpage .ihead+.icard{padding:0;margin:0;border-top:0}
-#instpage .icard h3{font-size:13px;font-weight:700;margin:0 0 10px;display:flex;align-items:center;gap:8px}
-#instpage .icard .tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:rgba(255,255,255,.12);color:var(--fg);border-radius:999px;padding:2px 8px}
-#instpage .icard p{color:var(--mute);font-size:13px;margin:0 0 14px;line-height:1.5}
-#instpage .icard .btn{width:100%;height:44px;justify-content:center;text-decoration:none;font-size:14px}
-#instpage .icard .btn+.btn{margin-top:8px}
-#instpage ol{margin:0;padding:0;list-style:none;counter-reset:s;color:var(--fg);font-size:13.5px;line-height:1.45}
-#instpage ol li{counter-increment:s;display:flex;gap:12px;align-items:flex-start;margin:0 0 11px}
-#instpage ol li:last-child{margin-bottom:0}
-#instpage ol li::before{content:counter(s);flex:none;width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.09);color:var(--mute);font-size:11px;font-weight:700;display:grid;place-items:center;margin-top:-1px}
-#instpage ol b{font-weight:600}
-#instpage .isub{color:var(--mute);font-size:12px;margin-top:12px;line-height:1.5;text-align:center}
+#instpage .ibox{width:min(340px,100%);margin:auto;padding:8px 0 4px;position:relative;animation:mpop .45s var(--ease) both}
+#instpage .ix{position:fixed;top:calc(16px + var(--sat));right:16px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.1);border:1px solid var(--line);color:var(--mute);font-size:14px;display:grid;place-items:center;transition:background-color .25s var(--ease),color .25s var(--ease)}
+#instpage .ix:hover{background:rgba(255,255,255,.18);color:#fff}
+#instpage .ihead{text-align:center;margin:10px 0 28px}
+#instpage .ihead img{width:72px;height:72px;border-radius:18px;margin:0 auto 16px;display:block;box-shadow:0 12px 32px rgba(0,0,0,.5)}
+#instpage h2{margin:0 0 8px;font-size:30px;font-weight:800;letter-spacing:-.01em}
+#instpage .ihead p{color:var(--mute);font-size:13px;line-height:1.5;margin:0}
+#instpage .icards{display:flex;flex-direction:column;gap:10px;margin-bottom:10px}
+#instpage .btn{width:100%;height:48px;justify-content:center;text-decoration:none;font-size:14px;transition:opacity .25s var(--ease),background-color .25s var(--ease)}
+#instpage .btn:hover{opacity:.92}#instpage .btn.ghost:hover,#instpage .ipl:not(.first) .btn:hover{background:rgba(255,255,255,.16);opacity:1}
+#instpage .btn.dl{gap:10px;font-weight:700}
+#instpage .btn.dl svg{width:18px;height:18px;flex:none}
+#instpage .ipl:not(.first) .btn.dl{background:rgba(255,255,255,.1);color:var(--fg);border:1px solid var(--line)}
+#instpage .btn.dl{position:relative}
+#instpage #instIosBtn .chev{position:absolute;right:18px;top:50%;width:16px;height:16px;margin-top:-8px;opacity:.55;transition:transform .35s var(--ease)}
+#instpage .ipl.open #instIosBtn .chev{transform:rotate(180deg)}
+#instpage .isteps{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .38s var(--ease),opacity .3s var(--ease)}
+#instpage .ipl.open .isteps{grid-template-rows:1fr;opacity:1}
+#instpage .isteps>div{min-height:0;overflow:hidden}
+#instpage .iwarn{display:flex;gap:11px;align-items:flex-start;margin:8px 0 0;padding:12px 14px;border-radius:14px;background:rgba(255,180,84,.1);border:1px solid rgba(255,180,84,.3);color:#ffc97a;font-size:12.5px;line-height:1.5}
+#instpage .iwarn svg{flex:none;width:17px;height:17px;margin-top:1px}
+#instpage .iwarn p{margin:0;color:rgba(255,226,180,.85)}
+#instpage .iwarn b{color:#ffc97a;font-weight:700}
+#instpage ol{margin:8px 0 0;padding:4px 16px;list-style:none;counter-reset:s;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);color:var(--mute);font-size:13px;line-height:1.45}
+#instpage ol li{counter-increment:s;display:flex;gap:12px;align-items:center;padding:12px 0;border-top:1px solid rgba(255,255,255,.07)}
+#instpage ol li:first-child{border-top:0}
+#instpage ol li::before{content:counter(s);flex:none;width:22px;height:22px;border-radius:50%;border:1px solid rgba(255,255,255,.22);color:var(--fg);font-size:11px;font-weight:700;display:grid;place-items:center}
+#instpage ol b{color:var(--fg);font-weight:600}
 #instpage .shr{display:inline-block;vertical-align:-3px;width:16px;height:16px}
+#instpage .btn.iskip{margin-top:2px;height:40px;background:none;border:0;color:var(--mute);font-weight:600}
+#instpage .btn.iskip:hover{background:none;color:var(--fg)}
+#instpage .ifoot{display:flex;align-items:center;justify-content:center;gap:22px;margin-top:22px}
+#instpage .ifoot a,#instpage .ifoot button{display:inline-flex;align-items:center;gap:6px;color:var(--mute);opacity:.75;font-size:12px;font-weight:500;text-decoration:none;transition:opacity .25s var(--ease),color .25s var(--ease)}
+#instpage .ifoot a:hover,#instpage .ifoot button:hover{opacity:1;color:var(--fg)}
+#instpage .ifoot svg{width:13px;height:13px}
+#instpage .ifoot a svg{fill:currentColor}
+#instpage .iolist{margin:16px 0 0;padding:0 2px}
+#instpage .olmsg{padding:14px 0;text-align:center;color:var(--mute);font-size:12.5px;line-height:1.6}
+#instpage .olmsg a{color:var(--fg);font-weight:600}
+#instpage .olrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid rgba(255,255,255,.07)}
+#instpage .olrow:first-child{border-top:0}
+#instpage .olrow>div:first-child{min-width:0}
+#instpage .olrow b{display:block;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#instpage .olrow small{display:block;margin-top:1px;color:var(--mute);font-size:11.5px}
+#instpage .olbtns{display:flex;gap:6px;flex:none}
+#instpage .olbtns a{color:var(--mute);font-size:12px;font-weight:600;text-decoration:none;padding:5px 11px;border-radius:999px;border:1px solid var(--line);transition:color .25s var(--ease),background-color .25s var(--ease)}
+#instpage .olbtns a:hover{color:#fff;background:rgba(255,255,255,.1)}
+#instpage .olall{display:block;padding:12px 0 2px;border-top:1px solid rgba(255,255,255,.07);text-align:center;color:var(--mute);font-size:12px;text-decoration:none}
+#instpage .olall:hover{color:var(--fg)}
 </style>
 <style>
 /* offline mode / incognito / device storage */
@@ -1502,6 +1527,69 @@ body.incog .incpill{display:inline-flex}
 
 /* ---- app: no Google sign-in ---- */
 .isai-app #lkG,.isai-app #lkRegG,.isai-app #lkGErr,.isai-app #lkRegGErr,.isai-app #lock .or{display:none!important}
+
+/* ======================================================================
+   DESKTOP ONLY (>=721px): Apple-Music-style full-screen player
+   + Spotify-style "now playing" sidebar. Phones are untouched.
+   ====================================================================== */
+#npbgA,#npbgB,#npbgShade{display:none}
+@media(min-width:721px){
+  /* ---------- full-screen player ---------- */
+  #npv{left:0;top:0;right:0;bottom:0;z-index:25;background:#0b0b0d}
+  #npv.open{grid-template-columns:minmax(300px,.85fr) minmax(0,1.15fr);gap:clamp(40px,5vw,96px);padding:56px clamp(40px,5vw,96px) 118px}
+  #npbgA,#npbgB,#npbgShade{display:block;position:absolute;inset:0;pointer-events:none;z-index:0}
+  #npbgA,#npbgB{background-size:cover;background-position:center;opacity:0;transform:scale(1.5);
+    filter:blur(64px) saturate(1.7) brightness(.72);transition:opacity 1.1s var(--ease)}
+  #npbgA.on,#npbgB.on{opacity:1}
+  #npbgShade{background:radial-gradient(120% 90% at 20% 10%,rgba(0,0,0,0) 0%,rgba(0,0,0,.28) 100%),linear-gradient(180deg,rgba(0,0,0,.12),rgba(0,0,0,.38))}
+  #npv .npl,#npv .npr,#npv .nptop,#npv #lyclean{position:relative;z-index:2}
+  #npv .nptop{position:absolute}
+  #npv #lyclean{position:absolute}
+
+  /* left: cover, thin scrubber, centred title + artist */
+  #npv{--cw:clamp(240px,min(30vw,calc(100vh - 380px),460px),460px)}
+  #npv .npl{gap:22px;justify-content:center}
+  #npv #npcover{width:var(--cw);border-radius:10px;box-shadow:0 24px 70px rgba(0,0,0,.5)}
+  #npv .npcard{display:flex;flex-direction:column;width:var(--cw);padding:0;border:0;border-radius:0;background:none;
+    box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+  #npv .npseek{order:1;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;margin:0 0 14px}
+  #npv .npseek div{display:contents}
+  #npv .npseek span{margin:0;font-size:12px;font-weight:600;color:rgba(255,255,255,.72)}
+  #npv #mcur{order:-1}#npv #mdur{order:2}
+  #npv #mseek{order:1}
+  #npv .npinfo{order:2;justify-content:center;text-align:center}
+  #npv .npti{flex:none;max-width:100%}
+  #npv .npinfo b{font-size:clamp(20px,1.6vw,26px);font-weight:800}
+  #npv .npinfo span{font-size:15px;color:rgba(255,255,255,.7)}
+  #npv .npbtns,#npv .npctl{display:none}   /* controls live in the bottom player bar */
+
+  /* right: big, crisp lyrics straight on the blurred art */
+  #npv .npr{background:transparent;border-color:transparent;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;padding:0 0 6px}
+  #npv .tabs{border-bottom:0;gap:8px;justify-content:flex-start;padding:0 0 10px}
+  #npv .tabs button{flex:none;padding:7px 16px;margin:0;border:0;border-radius:999px;font-size:12px;letter-spacing:.08em;color:rgba(255,255,255,.7);background:rgba(255,255,255,.08)}
+  #npv .tabs button:hover{background:rgba(255,255,255,.16)}
+  #npv .tabs button.on{background:rgba(255,255,255,.95);color:#111}
+  #npv .npr.lyrmode .npf{display:none}
+  #npv .lyhd{opacity:0;transition:opacity .3s var(--ease)}
+  #npv .npr:hover .lyhd{opacity:1}
+  #npv .qlist.lyr{padding:6px 0 42% 0}
+  #npv .ly{font-size:clamp(30px,2.55vw,48px);font-weight:800;line-height:1.22;letter-spacing:-.012em;padding:10px 6px;
+    color:rgba(255,255,255,.95);opacity:.42;filter:none;transform:scale(1);transform-origin:left center}
+  #npv .ly.past{opacity:.42;filter:none;transform:scale(1)}
+  #npv .ly:hover{opacity:.7;filter:none;transform:scale(1)}
+  #npv .ly.on{opacity:1;color:#fff;text-shadow:0 0 28px rgba(255,255,255,.55),0 0 2px rgba(255,255,255,.4)}
+  #npv .ly.bgv{font-size:clamp(22px,1.8vw,32px)}
+  #npv .ly.plain,#npv .ly.plain:hover{font-size:clamp(20px,1.6vw,26px);font-weight:700;opacity:.85;text-shadow:none}
+  #npv.lyclean.open{grid-template-columns:minmax(0,1fr)}
+
+  /* keep the open layout while fading out (otherwise the grid collapses = flash) */
+  #npv.closing{grid-template-columns:minmax(300px,.85fr) minmax(0,1.15fr);grid-template-rows:minmax(0,1fr);gap:clamp(40px,5vw,96px);padding:56px clamp(40px,5vw,96px) 118px}
+  #npv.lyclean.closing{grid-template-columns:minmax(0,1fr)}
+  #npv.closing .npl,#npv.closing .npr{animation:none;opacity:1;transform:none}
+
+  /* hide the clean-view / fullscreen toggle */
+  #lyclean,#npv.lytab #lyclean{display:none!important}
+}
 </style>
 </head>
 <body>
@@ -1572,24 +1660,27 @@ body.incog .incpill{display:inline-flex}
   </div>
 </div>
 
-<div id="instpage" role="dialog" aria-modal="true" aria-label="Install Isai"><div class="ibox">
-  <button class="ix" id="instX" aria-label="Close">✕</button>
-  <div class="ihead"><img src="/apple-touch-icon.png" alt=""><h2>Install Isai</h2><p>Add the app to your phone</p></div>
-  <div class="icard" id="instAndroid">
-    <h3>Android <span class="tag" id="instAndTag" hidden>Your device</span></h3>
-    <p>Background playback with media controls and notifications.</p>
-    <a class="btn" id="instApk" href="https://github.com/nithinana/isai-app/releases/download/v1.03_debug/Isai-debug.apk" download>Download APK</a>
+<div id="instpage" role="dialog" aria-modal="true" aria-label="Install Isai">
+<button class="ix" id="instX" aria-label="Close">✕</button>
+<div class="ibox">
+  <div class="ihead"><img src="/apple-touch-icon.png" alt=""><h2>Install Isai</h2><p>Get the app for your device</p></div>
+  <div class="icards">
+    <div class="ipl" id="instAndroid"><a class="btn dl" id="instApk" href="https://github.com/nithinana/isai-app/releases/download/v1.05_publicbeta/Isai-debug.apk" download><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4483-.9993.9993-.9993c.5511 0 .9993.4483.9993.9993.0001.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4483.9993.9993 0 .5511-.4483.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.2439 13.8533 7.8508 12 7.8508s-3.5902.3931-5.1367 1.0989L4.841 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3435-4.1021-2.6892-7.5743-6.1185-9.4396"/></svg><span>Install on Android</span></a></div>
+    <div class="ipl" id="instWin"><a class="btn dl" id="instWinBtn" href="https://github.com/nithinana/isai-app/releases/download/isai_windowsv1.2-beta/Isai-Setup.msi" download><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 3.6l8.6-1.2v8.3H2zM11.6 2.3L22 .8v9.9H11.6zM2 11.7h8.6v8.3L2 18.8zM11.6 11.7H22v9.9l-10.4-1.5z" transform="translate(0 1)"/></svg><span>Install on Windows</span></a></div>
+    <div class="ipl" id="instIos"><button class="btn dl" id="instIosBtn" type="button" aria-expanded="false"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.37 12.6c-.02-2.3 1.88-3.4 1.96-3.45-1.07-1.56-2.73-1.78-3.32-1.8-1.41-.14-2.76.83-3.48.83-.72 0-1.83-.81-3.01-.79-1.55.02-2.98.9-3.78 2.29-1.61 2.79-.41 6.92 1.16 9.18.77 1.1 1.69 2.35 2.89 2.3 1.16-.05 1.6-.75 3-.75s1.8.75 3.02.73c1.25-.02 2.04-1.12 2.8-2.23.88-1.28 1.24-2.52 1.26-2.58-.03-.01-2.42-.93-2.44-3.68M14.08 5.8c.64-.78 1.07-1.85.95-2.92-.92.04-2.03.61-2.69 1.38-.59.68-1.1 1.77-.97 2.82 1.03.08 2.07-.52 2.71-1.28"/></svg><span>Install on iPhone &amp; iPad</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
+      <div class="isteps" id="instIosSteps"><div><div class="iwarn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><p><b>Not recommended for regular use.</b> The iPhone version runs on the public API, which is slow, so it can be extremely unreliable.</p></div><ol>
+        <li><span>Open <b>isai.thirai.uk</b> in <b>Safari</b></span></li>
+        <li><span>Tap <b>Share</b> <svg class="shr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/></svg> then <b>Add to Home Screen</b></span></li>
+        <li><span>Tap <b>Add</b>, then open <b>Isai</b> from your Home Screen</span></li>
+      </ol></div></div></div>
     <button class="btn ghost" id="instPwa" hidden>Or install as web app</button>
-    <div class="isub">Open the file and tap Install. If Android blocks it, allow “Install unknown apps” for your browser.</div>
   </div>
-  <div class="icard" id="instIos">
-    <h3>iPhone &amp; iPad <span class="tag" id="instIosTag" hidden>Your device</span></h3>
-    <ol>
-      <li><span>Open <b>isai.thirai.uk</b> in <b>Safari</b></span></li>
-      <li><span>Tap <b>Share</b> <svg class="shr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/></svg> then <b>Add to Home Screen</b></span></li>
-      <li><span>Tap <b>Add</b>, then open <b>Isai</b> from your Home Screen</span></li>
-    </ol>
+  <button class="btn ghost iskip" id="instSkip" type="button">Continue on website</button>
+  <div class="ifoot">
+    <button id="instOld" type="button" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg><span>Older versions</span></button>
+    <a href="https://github.com/nithinana/isai-app" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
   </div>
+  <div class="iolist" id="instOldList" hidden></div>
 </div></div>
 <div id="notice" role="dialog" aria-modal="true" aria-labelledby="ntTitle"><div class="nbox">
   <div class="nic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.9 4.9l2.8 2.8"/><path d="M16.3 16.3l2.8 2.8"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.9 19.1l2.8-2.8"/><path d="M16.3 7.7l2.8-2.8"/></svg></div>
@@ -1776,6 +1867,7 @@ function showNotice(){ const n = $('notice'); if (n) { n.classList.add('on'); se
 function maybeShowNotice(){
   if (store.get('slowAck', '') === '1' || base() !== PUBLIC_API) return;   // only for the shared main server
   const lp = $('langpick'); if (lp && lp.classList.contains('on')) return setTimeout(maybeShowNotice, 1500);
+  const ip = $('instpage'); if (ip && ip.classList.contains('on')) return setTimeout(maybeShowNotice, 1500);
   showNotice();
 }
 $('ntOk').onclick = () => { store.set('slowAck', '1'); $('notice').classList.remove('on'); };
@@ -2193,10 +2285,11 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) queu
 /* ---- deep links: ?p=<share slug> opens a shared playlist once signed in ---- */
 function openDeepLink(){
   try {
-    const q = new URLSearchParams(location.search), slug = (q.get('p') || '').trim(), user = (q.get('u') || '').trim();
-    if (!slug && !user) return;
-    q.delete('p'); q.delete('u'); const qs = q.toString();
+    const q = new URLSearchParams(location.search), slug = (q.get('p') || '').trim(), user = (q.get('u') || '').trim(), art = (q.get('a') || '').trim(), artN = (q.get('n') || '').trim();
+    if (!slug && !user && !art) return;
+    q.delete('p'); q.delete('u'); q.delete('a'); q.delete('n'); const qs = q.toString();
     history.replaceState(history.state, '', location.pathname + (qs ? '?' + qs : '') + location.hash);
+    if (art && /^[\w-]{6,64}$/.test(art)) { openArtist(art, artN); return; }
     if (slug && /^[a-z0-9]{6,32}$/i.test(slug)) show('shared', slug);
     else if (user && /^[a-zA-Z0-9_]{3,20}$/.test(user)) show(acctName && user.toLowerCase() === acctName.toLowerCase() ? 'profile' : 'user', acctName && user.toLowerCase() === acctName.toLowerCase() ? undefined : user);
   } catch {}
@@ -2559,7 +2652,7 @@ function renderArtist(d){
       <div class="ahrow"><div class="ava">${d.thumbnail ? imgTag(av, 600) : ''}</div>
         <div class="aht"><span class="eb">Artist</span><h1>${esc(d.name || '')}</h1><p>${esc(d.subtitle || '')}</p>
           <div class="aar">${songs.length ? `<button class="rb big" id="lPlay" title="Play">${ic('play', 28)}<span class="lbl">Play</span></button><button class="rb" id="lShuf" title="Shuffle">${ic('shuffle')}</button>` : ''}
-            <button class="rb sm ${isSaved(pageEnt) ? 'on' : ''}" id="aSave" title="Save to library">${ic('bookmark', 18)}</button><button class="rb sm" id="aDl" title="Download popular songs">${ic('dl', 18)}</button></div></div></div></div>
+            <button class="rb sm ${isSaved(pageEnt) ? 'on' : ''}" id="aSave" title="Save to library">${ic('bookmark', 18)}</button><button class="rb sm" id="aShare" title="Share artist">${ic('share', 18)}</button><button class="rb sm" id="aDl" title="Download popular songs">${ic('dl', 18)}</button></div></div></div></div>
     <div class="abody">
       <div class="acols"><div>${songs.length ? `<h3 class="sec">Popular</h3><div id="pop"></div><button class="linkb" id="popMore">See more</button>` : ''}</div>${about}</div>
     </div>${disc.all.length ? discHtml() : ''}`;
@@ -2572,6 +2665,7 @@ function renderArtist(d){
   paintPop(false);
   if ($('popMore')) $('popMore').onclick = () => paintPop(true);
   if ($('abtMore')) $('abtMore').onclick = () => { const a = $('abt'); const c = a.classList.toggle('clamp'); $('abtMore').textContent = c ? 'Show more' : 'Show less'; };
+  $('aShare').onclick = () => shareArtist(d.id, d.name);
   $('aDl').onclick = () => downloadArtist(d.id, d.name || 'Artist', songs, d.thumbnail);
   $('aSave').onclick = () => $('aSave').classList.toggle('on', toggleSave(pageEnt));
   if (songs[0]) tintFrom(songs[0]);
@@ -3131,6 +3225,7 @@ function updateNP(){
   $('npfrom').textContent = queueName || 'Queue';
   $('npAlbum').style.display = (t.album_id || t.album) ? '' : 'none';
   syncLike();
+  if (window.__npSetBackdrop) { try { window.__npSetBackdrop(t); } catch {} }
   if ($('npv').classList.contains('open')) renderQueue();
 }
 const qrow = (t, i, kind) => `<div class="qr ${kind === 'q' && i === qi ? 'cur' : ''}${kind === 'q' && qEnd > qi && i > qi && i <= qEnd ? ' qd' : ''}" data-i="${i}" data-kind="${kind}" data-id="${esc(t.id)}">
@@ -3240,6 +3335,14 @@ async function shareSong(t){
   if (navigator.share) { try { await navigator.share(data); } catch {} return; }
   try { await navigator.clipboard.writeText(data.url); toast('Link copied'); } catch { toast(data.url); }
 }
+/* artist links: an app deep link (?a=<channelId>&n=<name>) that opens the artist page for whoever has Isai */
+const artistLink = (id, name) => location.origin + location.pathname + '?a=' + encodeURIComponent(id) + (name ? '&n=' + encodeURIComponent(name) : '');
+async function shareArtist(id, name){
+  if (!id) return toast('No artist info to share', true);
+  const data = { title: name || 'Artist', text: `${name || 'Artist'} on Isai`, url: artistLink(id, name) };
+  if (navigator.share) { try { await navigator.share(data); } catch {} return; }
+  try { await navigator.clipboard.writeText(data.url); toast('Artist link copied'); } catch { toast(data.url); }
+}
 function pickArtist(t){
   const as = artistsOf(t);
   if (as.length < 2) return as[0] ? openArtist(as[0].id, as[0].name) : toast('No artist info for this track', true);
@@ -3255,7 +3358,8 @@ function openSongMenu(t, o = {}){
     ['goq', 'list', 'Go to queue'],
     (t.album_id || t.album) ? ['album', 'album', 'Go to album'] : null,
     artistsOf(t).length ? ['artist', 'user', 'Go to artist'] : null,
-    ['share', 'share', 'Share'],
+    ['share', 'share', 'Share song'],
+    artistsOf(t).length ? ['shareartist', 'share', 'Share artist'] : null,
     ['dl', 'dl', 'Download']
   ].filter(Boolean);
   const sh = openModal(`<div class="smh"><img src="${esc(cov(t, 120))}" alt=""><div class="qm"><b>${esc(t.title)}</b><span>${expTag(t)}${esc(t.artist || '')}</span></div></div>`
@@ -3271,6 +3375,7 @@ function openSongMenu(t, o = {}){
     else if (k === 'album') openAlbumOf(t);
     else if (k === 'artist') pickArtist(t);
     else if (k === 'share') shareSong(t);
+    else if (k === 'shareartist') { const as = artistsOf(t); if (as.length < 2) shareArtist(as[0].id, as[0].name); else { const sh2 = openModal(`<h3>Share artist</h3>${as.map((a, i) => `<button class="plr act" data-i="${i}"><span class="plc">${ic('user', 20)}</span><span class="qm"><b>${esc(a.name)}</b></span></button>`).join('')}`); sh2.onclick = ev => { const rr = ev.target.closest('[data-i]'); if (!rr) return; closeModal(); const a = as[+rr.dataset.i]; shareArtist(a.id, a.name); }; } }
     else if (k === 'dl') download(t, null);
   };
 }
@@ -3413,6 +3518,8 @@ $('npmore').onclick = () => {
     ${row('dl', dls.some(d => d.id === t.id) ? 'Downloaded' : 'Download', ic('dl', 20))}
     ${(t.album_id || t.album) ? row('album', 'Go to album', ic('note', 20)) : ''}
     ${artistsOf(t)[0] ? row('artist', 'Go to artist', ic('chev', 20)) : ''}
+    ${row('share', 'Share song', ic('share', 20))}
+    ${artistsOf(t)[0] ? row('shareartist', 'Share artist', ic('share', 20)) : ''}
     ${lyState === 'found' ? row('lyr', 'Lyrics', ic('note', 20)) : ''}
     ${lyState === 'found' ? row('tl', lyTl() ? 'Hide pronunciation' : 'Show pronunciation', ic('note', 20)) : ''}`);
   sheet.onclick = e => {
@@ -3423,6 +3530,8 @@ $('npmore').onclick = () => {
     else if (k === 'dl') download(t);
     else if (k === 'album') openAlbumOf(t);
     else if (k === 'artist') { const x = artistsOf(t)[0]; if (x) openArtist(x.id, x.name); }
+    else if (k === 'share') shareSong(t);
+    else if (k === 'shareartist') { const x = artistsOf(t)[0]; if (x) shareArtist(x.id, x.name); }
     else if (k === 'lyr') { setTab('lyrics'); $('npr').classList.add('up'); }
     else if (k === 'tl') lyToggleTl();
   };
@@ -3802,6 +3911,28 @@ function dlProgress(id){
     el.textContent = a.total ? `${fmtSize(a.loaded)} of ${fmtSize(a.total)}` : a.loaded ? fmtSize(a.loaded) : 'Preparing…';
   });
 }
+/* download request: the playback path works because it sends the key in the URL (no custom headers, so no CORS preflight).
+   Do the same here, then fall back to the header style and finally to the plain stream so a flaky /download route never blocks saving */
+async function dlFetch(t, f){
+  if (!window.__unlocked) throw new Error('Sign in required');
+  if (!isOnline()) throw new Error("You're offline");
+  const k = store.get('key', ''), q = k ? '&key=' + encodeURIComponent(k) : '', id = encodeURIComponent(t.id), b = base();
+  const tries = [
+    { u: `${b}/download/${id}?fmt=${f}${q}`, o: {}, ms: 180000 },
+    { u: `${b}/download/${id}?fmt=${f}${q}`, o: { headers: hd() }, ms: 180000 },
+    { u: audioUrl(t.id), o: {}, ms: 120000, stream: true }
+  ];
+  let last = null;
+  for (const x of tries) {
+    try {
+      const r = await fetchT(x.u, x.o, x.ms, false);
+      if (r.ok) { r.__stream = !!x.stream; return r; }
+      let m = r.statusText; try { m = (await r.json()).detail || m; } catch {}
+      last = new Error(typeof m === 'string' && m ? m : 'Download failed (' + r.status + ')');
+    } catch (e) { last = e; if (!isOnline()) throw new Error("You're offline"); }
+  }
+  throw new Error(last && last.name !== 'AbortError' && last.name !== 'TypeError' ? last.message : 'Could not download this song right now. Please try again in a moment.');
+}
 async function download(t, btn, quiet, job){
   if (isLocalId(t.id)) { if (!quiet) toast('Local files live on the device they were added on'); return false; }
   if (dlActive[t.id]) { if (!quiet) toast('Already downloading'); return false; }
@@ -3811,7 +3942,7 @@ async function download(t, btn, quiet, job){
   dlTick();
   let ok = false;
   try {
-    const r = await api(`/download/${t.id}?fmt=${f}`);
+    const r = await dlFetch(t, f);
     const cd = r.headers.get('content-disposition') || '';
     const name = (cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i) || [])[1];
     a.total = +r.headers.get('content-length') || 0;
@@ -3821,7 +3952,8 @@ async function download(t, btn, quiet, job){
       for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); a.loaded += value.length; dlProgress(t.id); }
       blob = new Blob(parts, { type: r.headers.get('content-type') || 'application/octet-stream' });
     } else blob = await r.blob();
-    const fname = name ? decodeURIComponent(name) : `${t.title}.${f}`;
+    const ct = r.headers.get('content-type') || '', sx = /mp4|m4a|aac/.test(ct) ? 'm4a' : /webm/.test(ct) ? 'webm' : /ogg|opus/.test(ct) ? 'opus' : /mpeg|mp3/.test(ct) ? 'mp3' : f;
+    const fname = name ? decodeURIComponent(name) : `${t.title}.${r.__stream ? sx : f}`.replace(/[\\/:*?"<>|]+/g, '_');
     const meta = { ...slim(t), fmt: f, size: blob.size, ts: Date.now(), file: fname };
     try {
       await idb.put(meta, blob);
@@ -6133,6 +6265,7 @@ const pwaBtn = $('pwaInstall');
 const isInstalled = () => !!window.IsaiNative || window.matchMedia('(display-mode: standalone)').matches || window.matchMedia('(display-mode: fullscreen)').matches || window.navigator.standalone === true || store.get('installed', '') === '1';
 const isIOS = () => (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) && !window.MSStream;
 const isAndroid = () => /Android/i.test(navigator.userAgent);
+const isWindows = () => /Windows NT/i.test(navigator.userAgent) && !isAndroid();
 const instBox = $('instpage');
 
 function updateInstallBtn() {
@@ -6143,19 +6276,48 @@ function updateInstallBtn() {
 }
 function openInstall() {
   if (isInstalled()) return;
-  const ios = isIOS(), and = isAndroid();
-  $('instAndTag').hidden = !and; $('instIosTag').hidden = !ios;
+  const ios = isIOS(), and = isAndroid(), win = isWindows();
   $('instPwa').hidden = !deferredPrompt;
-  /* the visitor's own platform goes first */
-  const box = instBox.querySelector('.ibox');
-  box.insertBefore(ios ? $('instIos') : $('instAndroid'), ios ? $('instAndroid') : $('instIos'));
-  $('instAndroid').classList.toggle('me', and); $('instIos').classList.toggle('me', ios);
+  /* the visitor's own platform goes first (white button), the rest follow in grey */
+  const wrap = instBox.querySelector('.icards');
+  const A = $('instAndroid'), W = $('instWin'), I = $('instIos');
+  const first = win ? W : ios ? I : A;
+  [first, ...[A, W, I].filter(x => x !== first)].forEach((x, i) => { wrap.appendChild(x); x.classList.toggle('first', i === 0); });
+  wrap.appendChild($('instPwa'));
+  I.classList.toggle('open', ios);
+  $('instIosBtn').setAttribute('aria-expanded', String(ios));
   instBox.classList.add('on');
 }
 function closeInstall() { if (instBox) instBox.classList.remove('on'); }
 if (instBox) {
   $('instX').onclick = closeInstall;
-  instBox.addEventListener('click', e => { if (e.target === instBox) closeInstall(); });
+  $('instSkip').onclick = closeInstall;
+  $('instIosBtn').onclick = () => { const w = $('instIos'); const on = w.classList.toggle('open'); $('instIosBtn').setAttribute('aria-expanded', String(on)); };
+  /* older versions: lists the GitHub releases, with a plain link as the fallback */
+  const REL = 'https://github.com/nithinana/isai-app/releases';
+  let oldDone = false;
+  $('instOld').onclick = async () => {
+    const btn = $('instOld'), box = $('instOldList');
+    if (!box.hidden) { box.hidden = true; btn.setAttribute('aria-expanded', 'false'); return; }
+    box.hidden = false; btn.setAttribute('aria-expanded', 'true');
+    if (oldDone) return;
+    box.innerHTML = '<div class="olmsg">Loading versions…</div>';
+    try {
+      const r = await fetch('https://api.github.com/repos/nithinana/isai-app/releases?per_page=30', { headers: { Accept: 'application/vnd.github+json' } });
+      if (!r.ok) throw new Error(r.status);
+      const list = (await r.json()).filter(x => !x.draft);
+      if (!list.length) throw new Error('none');
+      box.innerHTML = list.map(x => {
+        const as = (x.assets || []).map(a => /\.apk$/i.test(a.name) ? ['Android', a] : /\.(msi|exe)$/i.test(a.name) ? ['Windows', a] : null).filter(Boolean);
+        const d = x.published_at ? new Date(x.published_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+        const meta = [d, x.prerelease ? 'beta' : ''].filter(Boolean).join(' · ');
+        return `<div class="olrow"><div><b>${esc(x.name || x.tag_name)}</b><small>${esc(meta)}</small></div><div class="olbtns">${as.length ? as.map(([l, a]) => `<a href="${esc(a.browser_download_url)}" download>${l}</a>`).join('') : `<a href="${esc(x.html_url)}" target="_blank" rel="noopener">View</a>`}</div></div>`;
+      }).join('') + `<a class="olall" href="${REL}" target="_blank" rel="noopener">See all on GitHub</a>`;
+      oldDone = true;
+    } catch (e) {
+      box.innerHTML = `<div class="olmsg">Couldn't load the list right now.<br><a href="${REL}" target="_blank" rel="noopener">Open all releases on GitHub</a></div>`;
+    }
+  };
   $('instPwa').onclick = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
@@ -6180,6 +6342,8 @@ window.addEventListener('appinstalled', () => {
 if (pwaBtn) pwaBtn.onclick = openInstall;
 window.__openInstall = openInstall;
 updateInstallBtn();
+/* website launch: the very first screen is the install popup (skipped inside the installed app) */
+if (!isInstalled()) openInstall();
 
 /* ---------- login gate (logic from Thirai index) ---------- */
 (function(){
@@ -6379,6 +6543,31 @@ updateInstallBtn();
       }
     })
     .catch(() => startApp()); // account server unreachable: keep an existing session in (same as index)
+})();
+</script>
+
+<script>
+/* ===== Desktop full-screen backdrop + now-playing sidebar (additive) ===== */
+(function(){
+  const desk = () => matchMedia('(min-width:721px)').matches;
+  const npv = $('npv');
+
+  /* ---- blurred cover backdrop for the full-screen player ---- */
+  const bgA = document.createElement('div'), bgB = document.createElement('div'), shade = document.createElement('div');
+  bgA.id = 'npbgA'; bgB.id = 'npbgB'; shade.id = 'npbgShade';
+  npv.prepend(shade); npv.prepend(bgB); npv.prepend(bgA);
+  let bgOn = 0, bgUrl = '';
+  function setBackdrop(t){
+    if (!t) return;
+    let u = ''; try { u = cov(t, 320); } catch {}
+    if (!u || u === bgUrl) return; bgUrl = u;
+    const nxt = bgOn ? bgA : bgB, cur = bgOn ? bgB : bgA;
+    const im = new Image(); im.onload = () => { nxt.style.backgroundImage = 'url("' + u.replace(/"/g, '%22') + '")'; nxt.classList.add('on'); cur.classList.remove('on'); bgOn = bgOn ? 0 : 1; };
+    im.src = u;
+  }
+  window.__npSetBackdrop = setBackdrop;
+  if (typeof current !== 'undefined' && current) setBackdrop(current);
+
 })();
 </script>
 </body>
