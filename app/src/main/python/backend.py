@@ -13,8 +13,8 @@ Endpoints:
   GET /download/{video_id}?fmt=mp3    Download audio file (needs ffmpeg for conversion)
   GET /playlist/{playlist_id}         Playlist / album track list
   GET /mood?name=Relax                Mood feeds
-  GET /lyrics/{video_id}?title=&artist=&album=&isrc=&source=auto|unison|lrcred
-                                      Synced lyrics (Unison + lrc.red), parsed into timed lines
+  GET /lyrics/{video_id}?title=&artist=&album=&duration=&isrc=&source=auto|lrcred|unison|lrclib|simpmusic|netease|kugou|ovh
+                                      Synced lyrics from 7 sources (Auto picks the best), parsed into timed lines
   GET /import?url=...                 Import a PUBLIC / unlisted YouTube playlist (all tracks)
   GET /charts/countries               Countries available for charts
   GET /charts/{code}                  Chart playlists + top songs + top artists (ZZ = global)
@@ -3175,7 +3175,7 @@ def spotify_match(payload: dict = Body(...)):
     return {"results": results}
 
 
-# ---- Lyrics (Unison + lrc.red) ----------------------------------------------------
+# ---- Lyrics (Unison + lrc.red + more, see below) ----------------------------------------------------
 import json
 from urllib.parse import urlencode
 from xml.etree import ElementTree as ET
@@ -3190,9 +3190,9 @@ _LRC_WORD = re.compile(r"<(\d+):(\d+(?:\.\d+)?)>")
 _TTML_SKIP_ROLES = ("x-translation", "x-roman")
 
 
-def _http_text(url: str, timeout: int = 8) -> Optional[str]:
+def _http_text(url: str, timeout: int = 8, headers: Optional[dict] = None) -> Optional[str]:
     try:
-        with urlopen(UrlRequest(url, headers=_LYR_UA), timeout=timeout) as r:
+        with urlopen(UrlRequest(url, headers={**_LYR_UA, **(headers or {})}), timeout=timeout) as r:
             return r.read().decode("utf-8-sig", "replace")
     except Exception:
         return None
@@ -3373,24 +3373,241 @@ def _fetch_lrcred(isrc: str) -> Optional[dict]:
     return None
 
 
-@ttl_cache(ttl=3600, maxsize=500)
-def _get_lyrics(video_id: str, title: str, artist: str, isrc: str, source: str) -> dict:
-    order = []
-    if isrc and source in ("auto", "lrcred"):
-        order.append("lrcred")
-    if source in ("auto", "unison"):
-        order.append("unison")
-    fallback = None
-    for name in order:
-        res = _fetch_lrcred(isrc) if name == "lrcred" else _fetch_unison(video_id, title, artist)
-        if not res:
+# ---- More lyric sources: LRCLIB, SimpMusic, NetEase, Kugou, lyrics.ovh ------------
+# Every source is optional and isolated: a slow or broken one only costs its own timeout and never
+# stops the others. Text-search sources are checked against the song's length so a wrong song is rejected.
+import base64
+import difflib as _dl
+
+LRCLIB_URL = os.getenv("LRCLIB_URL", "https://lrclib.net").rstrip("/")
+SIMPMUSIC_URL = os.getenv("SIMPMUSIC_URL", "https://api-lyrics.simpmusic.org").rstrip("/")
+OVH_URL = os.getenv("LYRICSOVH_URL", "https://api.lyrics.ovh").rstrip("/")
+ALL_LYRIC_SOURCES = ("lrcred", "unison", "lrclib", "simpmusic", "netease", "kugou", "ovh")
+_NE_HDR = {"Referer": "https://music.163.com/", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0 Safari/537.36"}
+_NOISE = re.compile(
+    r"\s*[\(\[][^\)\]]*(feat\.?|ft\.?|with|official|video|audio|lyrics?|remaster|version|live|from\s|mv|hd|4k)[^\)\]]*[\)\]]"
+    r"|\s+-\s+(from|feat|ft|official|remaster).*$|\s+\|.*$", re.I)
+
+
+def _http_json(url: str, headers: Optional[dict] = None, timeout: int = 8):
+    raw = _http_text(url, timeout, headers)
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except ValueError:
+        return None
+
+
+def _clean_title(s: str) -> str:
+    return _NOISE.sub("", s or "").strip()
+
+
+def _first_artist(s: str) -> str:
+    return re.split(r"\s*(?:,|&|;|\sx\s|\sfeat\.?\s|\sft\.?\s)\s*", (s or "").strip(), maxsplit=1)[0].strip()
+
+
+def _norm(s: str) -> str:
+    s = unicodedata.normalize("NFKD", s or "").lower()
+    return re.sub(r"[^\w]+", " ", "".join(c for c in s if not unicodedata.combining(c))).strip()
+
+
+def _same_title(a: str, b: str) -> bool:
+    a, b = _norm(_clean_title(a)), _norm(_clean_title(b))
+    if not a or not b:
+        return False
+    return a == b or a in b or b in a or _dl.SequenceMatcher(None, a, b).ratio() >= 0.72
+
+
+def _dur_ok(want: float, got: Optional[float], tol: float = 6.0) -> bool:
+    return not want or not got or abs(float(want) - float(got)) <= tol
+
+
+def _pick(cands: list, title: str, artist: str, duration: float, get) -> Optional[dict]:
+    """Best candidate: title must match, length must be close; artist match breaks ties."""
+    best, best_score = None, 0.0
+    na = _norm(_first_artist(artist))
+    for c in cands:
+        t, a, d = get(c)
+        if not _same_title(title, t or "") or not _dur_ok(duration, d):
             continue
-        if res["synced"]:
-            return res
-        fallback = fallback or res
-    if fallback:
-        return fallback
-    note = "lrc.red looks tracks up by ISRC. Enter this track's ISRC to use it." if source == "lrcred" and not isrc else None
+        score = 1.0 + (1.0 if na and na in _norm(a or "") else 0.0) - (abs(duration - d) / 20 if duration and d else 0)
+        if score > best_score:
+            best, best_score = c, score
+    return best
+
+
+def _fetch_lrclib(title: str, artist: str, album: str, duration: float) -> Optional[dict]:
+    hdr = {"User-Agent": "Isai/1.0 (https://isai.thirai.uk)"}
+    t, a = _clean_title(title), _first_artist(artist)
+
+    def use(d):
+        if not isinstance(d, dict):
+            return None
+        for key in ("syncedLyrics", "plainLyrics"):
+            if d.get(key):
+                r = _lyrics_result("lrclib", d[key], {"id": d.get("id"), "song": d.get("trackName"), "artist": d.get("artistName")})
+                if r:
+                    return r
+        return None
+
+    if t and a:
+        q = {"track_name": t, "artist_name": a, "album_name": album or "", "duration": int(duration) if duration else ""}
+        d = _http_json(f"{LRCLIB_URL}/api/get?{urlencode({k: v for k, v in q.items() if v != ''})}", hdr)
+        if isinstance(d, dict) and _dur_ok(duration, d.get("duration"), 8):
+            r = use(d)
+            if r:
+                return r
+    res = _http_json(f"{LRCLIB_URL}/api/search?{urlencode({'track_name': t, 'artist_name': a} if (t and a) else {'q': ' '.join(x for x in (t, a) if x)})}", hdr)
+    if isinstance(res, list):
+        res = [c for c in res if isinstance(c, dict) and (c.get("syncedLyrics") or c.get("plainLyrics"))]
+        get = lambda c: (c.get("trackName"), c.get("artistName"), c.get("duration"))
+        c = _pick([c for c in res if c.get("syncedLyrics")], t, a, duration, get) or _pick(res, t, a, duration, get)   # synced first
+        if c:
+            return use(c)
+    return None
+
+
+def _fetch_simpmusic(video_id: str) -> Optional[dict]:
+    if not VIDEO_ID_RE.match(video_id or ""):
+        return None
+    body = _http_json(f"{SIMPMUSIC_URL}/v1/{video_id}")
+    items = body.get("data") if isinstance(body, dict) else None
+    if isinstance(items, dict):
+        items = [items]
+    for d in items or []:
+        if not isinstance(d, dict):
+            continue
+        for key in ("syncedLyrics", "synced_lyrics", "plainLyric", "plainLyrics", "plain_lyric"):
+            if d.get(key):
+                r = _lyrics_result("simpmusic", d[key], {"song": d.get("songTitle"), "artist": d.get("artistName")})
+                if r:
+                    return r
+    return None
+
+
+def _fetch_netease(title: str, artist: str, duration: float) -> Optional[dict]:
+    t, a = _clean_title(title), _first_artist(artist)
+    if not t:
+        return None
+    q = urlencode({"s": f"{t} {a}".strip(), "type": 1, "limit": 8, "offset": 0})
+    body = _http_json(f"https://music.163.com/api/search/get?{q}", _NE_HDR)
+    songs = ((body or {}).get("result") or {}).get("songs") if isinstance(body, dict) else None
+    c = _pick(songs or [], t, a, duration, lambda s: (
+        s.get("name"), " ".join(x.get("name", "") for x in (s.get("artists") or [])),
+        (s.get("duration") or 0) / 1000 or None))
+    if not c:
+        return None
+    ly = _http_json(f"https://music.163.com/api/song/lyric?{urlencode({'id': c['id'], 'lv': 1, 'kv': 1, 'tv': -1})}", _NE_HDR)
+    text = (((ly or {}).get("lrc") or {}).get("lyric") or "") if isinstance(ly, dict) else ""
+    if not text.strip():
+        return None
+    return _lyrics_result("netease", text, {"id": c.get("id"), "song": c.get("name")})
+
+
+def _fetch_kugou(title: str, artist: str, duration: float) -> Optional[dict]:
+    t, a = _clean_title(title), _first_artist(artist)
+    if not t:
+        return None
+    q = {"ver": 1, "man": "yes", "client": "pc", "keyword": f"{a} - {t}" if a else t, "duration": int(duration * 1000) if duration else "", "hash": ""}
+    body = _http_json(f"https://lyrics.kugou.com/search?{urlencode(q)}")
+    cands = (body or {}).get("candidates") if isinstance(body, dict) else None
+    c = _pick(cands or [], t, a, duration, lambda s: (s.get("song"), s.get("singer"), (s.get("duration") or 0) / 1000 or None))
+    if not c:
+        return None
+    dl = _http_json("https://lyrics.kugou.com/download?" + urlencode(
+        {"ver": 1, "client": "pc", "id": c.get("id"), "accesskey": c.get("accesskey"), "fmt": "lrc", "charset": "utf8"}))
+    try:
+        text = base64.b64decode((dl or {}).get("content") or "").decode("utf-8-sig", "replace")
+    except Exception:
+        return None
+    text = re.sub(r"^\[(?:ti|ar|al|by|offset|total|id|hash|sign|qq|language):.*$", "", text, flags=re.M | re.I)
+    return _lyrics_result("kugou", text, {"id": c.get("id"), "song": c.get("song")}) if text.strip() else None
+
+
+def _fetch_ovh(title: str, artist: str) -> Optional[dict]:
+    t, a = _clean_title(title), _first_artist(artist)
+    if not (t and a):
+        return None
+    body = _http_json(f"{OVH_URL}/v1/{quote(a, safe='')}/{quote(t, safe='')}")
+    text = (body or {}).get("lyrics") if isinstance(body, dict) else None
+    return _lyrics_result("ovh", text, {}) if text and text.strip() else None
+
+
+@ttl_cache(ttl=21600, maxsize=800)
+def _find_isrc(title: str, artist: str, duration: float) -> str:
+    """lrc.red needs an ISRC. Look one up from Deezer, then MusicBrainz, so lrc.red works without typing one in."""
+    t, a = _clean_title(title), _first_artist(artist)
+    if not t:
+        return ""
+    q = f'artist:"{a}" track:"{t}"' if a else t
+    body = _http_json("https://api.deezer.com/search?" + urlencode({"q": q, "limit": 6}))
+    c = _pick((body or {}).get("data") or [] if isinstance(body, dict) else [], t, a, duration,
+              lambda s: (s.get("title"), (s.get("artist") or {}).get("name"), s.get("duration")))
+    if c and c.get("id"):
+        d = _http_json(f"https://api.deezer.com/track/{c['id']}")
+        isrc = re.sub(r"[\s-]", "", (d or {}).get("isrc") or "").upper() if isinstance(d, dict) else ""
+        if ISRC_RE.match(isrc):
+            return isrc
+    mq = f'recording:"{t}"' + (f' AND artist:"{a}"' if a else "")
+    mb = _http_json("https://musicbrainz.org/ws/2/recording?" + urlencode({"query": mq, "fmt": "json", "limit": 6}),
+                    {"User-Agent": "Isai/1.0 (https://isai.thirai.uk)"})
+    recs = (mb or {}).get("recordings") if isinstance(mb, dict) else None
+    c = _pick([r for r in (recs or []) if r.get("isrcs")], t, a, duration,
+              lambda r: (r.get("title"), " ".join(x.get("name", "") for x in (r.get("artist-credit") or [])), (r.get("length") or 0) / 1000 or None))
+    if c:
+        for isrc in c.get("isrcs") or []:
+            if ISRC_RE.match(isrc):
+                return isrc
+    return ""
+
+
+def _run_source(name: str, video_id: str, title: str, artist: str, album: str, isrc: str, duration: float) -> Optional[dict]:
+    try:
+        if name == "lrcred":
+            isrc = isrc or _find_isrc(title, artist, duration)
+            return _fetch_lrcred(isrc) if isrc else None
+        if name == "unison":
+            return _fetch_unison(video_id if VIDEO_ID_RE.match(video_id or "") else "", title, artist)
+        if name == "lrclib":
+            return _fetch_lrclib(title, artist, album, duration)
+        if name == "simpmusic":
+            return _fetch_simpmusic(video_id)
+        if name == "netease":
+            return _fetch_netease(title, artist, duration)
+        if name == "kugou":
+            return _fetch_kugou(title, artist, duration)
+        if name == "ovh":
+            return _fetch_ovh(title, artist)
+    except Exception:
+        return None
+    return None
+
+
+def _sync_rank(res: Optional[dict]) -> int:
+    return 0 if not res else {"richsync": 3, "linesync": 2}.get(res.get("syncType"), 1)
+
+
+@ttl_cache(ttl=3600, maxsize=800)
+def _get_lyrics(video_id: str, title: str, artist: str, isrc: str, source: str, album: str = "", duration: float = 0.0) -> dict:
+    def run(names):
+        with ThreadPoolExecutor(max_workers=len(names)) as ex:
+            return [r for r in ex.map(lambda n: _run_source(n, video_id, title, artist, album, isrc, duration), names) if r]
+
+    if source != "auto":
+        res = run([source])
+        if res:
+            return res[0]
+    else:
+        # stage 1 = the quick, well-matched sources; stage 2 = Chinese-catalogue sources; stage 3 = plain text only
+        found: list = []
+        for stage in (("lrcred", "unison", "lrclib", "simpmusic"), ("netease", "kugou"), ("ovh",)):
+            found += run(stage)
+            if any(r["synced"] for r in found) or (found and stage[0] == "ovh"):
+                break
+        if found:
+            return max(found, key=_sync_rank)   # richest sync wins; ties keep the earlier (higher-priority) source
+    note = "lrc.red looks tracks up by ISRC and none was found for this song. You can enter one." if source == "lrcred" else None
     return {"found": False, "source": None, "syncType": None, "synced": False, "lines": [], "note": note}
 
 
@@ -3399,17 +3616,26 @@ def lyrics(
     video_id: str,
     title: Optional[str] = Query(None, max_length=200),
     artist: Optional[str] = Query(None, max_length=200),
-    isrc: Optional[str] = Query(None, max_length=20, description="Needed for lrc.red lookups"),
-    source: str = Query("auto", description="auto, unison or lrcred"),
+    isrc: Optional[str] = Query(None, max_length=20, description="Optional; found automatically when missing"),
+    source: str = Query("auto", description="auto, " + ", ".join(ALL_LYRIC_SOURCES)),
+    album: Optional[str] = Query(None, max_length=200),
+    duration: Optional[float] = Query(None, ge=0, le=7200),
 ):
-    """Synced lyrics as timed lines. Unison is queried by video id, lrc.red by ISRC."""
-    check_video_id(video_id)
-    if source not in ("auto", "unison", "lrcred"):
-        raise HTTPException(400, "source must be auto, unison or lrcred")
+    """Lyrics as timed lines, from many sources at once (Auto picks the best-synced one)."""
+    if not video_id.startswith("local_"):          # songs added from the device have no video id
+        check_video_id(video_id)
+    if source != "auto" and source not in ALL_LYRIC_SOURCES:
+        raise HTTPException(400, "source must be auto or one of: " + ", ".join(ALL_LYRIC_SOURCES))
     isrc = re.sub(r"[\s-]", "", isrc or "").upper()
     if isrc and not ISRC_RE.match(isrc):
         raise HTTPException(400, "That doesn't look like an ISRC (2 letters, 3 letters/digits, 7 digits).")
-    return _get_lyrics(video_id, (title or "").strip(), (artist or "").strip(), isrc, source)
+    return _get_lyrics(video_id, (title or "").strip(), (artist or "").strip(), isrc, source,
+                       (album or "").strip(), round(float(duration or 0)))
+
+
+@app.get("/lyrics-sources", dependencies=[Depends(require_key)])
+def lyrics_sources():
+    return {"sources": list(ALL_LYRIC_SOURCES)}
 
 
 # ---- Cover art (auto-cropped to a square) ------------------------------------

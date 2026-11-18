@@ -6,9 +6,11 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
+import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.Icon;
@@ -37,6 +39,7 @@ public class MediaBridge {
     private static final int DL_ID = 3;
     private static final String CH_DL = "isai_dl";
     static final int REQ_SAVE = 4242;
+    static final int REQ_AUDIO = 4244;
     private static final String A_PREV = "uk.thirai.isai.PREV", A_PP = "uk.thirai.isai.PP", A_NEXT = "uk.thirai.isai.NEXT";
 
     private final Activity ctx;
@@ -55,6 +58,8 @@ public class MediaBridge {
     private boolean dlShown = false;
     private int dlIdle = 0;
     private volatile String backendInfo = "";
+    private volatile String audioScan = "[]";
+    private boolean scanning = false;
     private PowerManager.WakeLock wl;
     private final Object saveLock = new Object();
     private String saveWant = null, saveId = null;      // saveWant: waiting on the picker; saveId: file is open for writing
@@ -102,6 +107,57 @@ public class MediaBridge {
     /** JSON like {"url":"http://127.0.0.1:8765","api":0} when the on-device backend is up, else "". */
     @JavascriptInterface
     public String backendInfo() { return backendInfo; }
+
+    // ---- Local files: every song on the device ----
+    private String audioPerm() {
+        return Build.VERSION.SDK_INT >= 33 ? Manifest.permission.READ_MEDIA_AUDIO : Manifest.permission.READ_EXTERNAL_STORAGE;
+    }
+
+    private boolean hasAudio() {
+        return ctx.checkSelfPermission(audioPerm()) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /** "granted" or "denied": lets the page decide whether to ask. */
+    @JavascriptInterface
+    public String audioAccess() { return hasAudio() ? "granted" : "denied"; }
+
+    /** The song list from the last scan (JSON array); read after the page gets __lfDevice('ready'). */
+    @JavascriptInterface
+    public String audioScanJson() { return audioScan; }
+
+    /**
+     * Starts a scan of the device's music. With ask=true and no permission yet, the system permission dialog shows first.
+     * The page is told the result through window.__lfDevice('ready' | 'denied' | 'error').
+     */
+    @JavascriptInterface
+    public void scanAudio(final boolean ask) {
+        main.post(() -> {
+            if (hasAudio()) { runScan(); return; }
+            if (ask) { try { ctx.requestPermissions(new String[]{audioPerm()}, REQ_AUDIO); return; } catch (Exception ignored) {} }
+            tellPage("denied");
+        });
+    }
+
+    boolean onPermissionResult(int req, int[] results) {
+        if (req != REQ_AUDIO) return false;
+        if (results != null && results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) runScan(); else tellPage("denied");
+        return true;
+    }
+
+    private void runScan() {
+        if (scanning) return;
+        scanning = true;
+        new Thread(() -> {
+            String state = "ready";
+            try { audioScan = LocalAudio.scan(ctx); } catch (Exception e) { state = "error"; }
+            scanning = false;
+            tellPage(state);
+        }, "isai-scan").start();
+    }
+
+    private void tellPage(String state) {
+        main.post(() -> { try { web.evaluateJavascript("window.__lfDevice&&window.__lfDevice('" + state + "')", null); } catch (Exception ignored) {} });
+    }
 
     /** Lets the page know which app it is in (it shows Local files only in the Android and Windows apps). */
     @JavascriptInterface

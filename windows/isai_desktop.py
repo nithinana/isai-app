@@ -26,6 +26,7 @@ import subprocess
 import sys
 import threading
 import time
+import zlib
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -493,6 +494,7 @@ class App:
         self.save = SaveState()
         self.assets = _bundled_assets_dir()
         self.page = read_cache()                           # last live page, for offline
+        self.lf_paths = {}                                 # local-file id -> path on this PC
 
     def pick_save_path(self, name):
         if os.environ.get("ISAI_TEST_SAVE_PATH"):          # headless tests have no dialog
@@ -523,6 +525,67 @@ def refresh_loop(app):
                 webview.windows[0].evaluate_js("try{toast('Update ready - restart Isai to apply')}catch(e){}")
             except Exception:
                 pass
+
+
+# ============================================================ local files (songs already on this PC)
+
+LF_EXT = {".mp3", ".m4a", ".m4b", ".aac", ".flac", ".ogg", ".oga", ".opus", ".wav", ".weba", ".wma", ".aif", ".aiff"}
+LF_MIME = {".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".m4b": "audio/mp4", ".aac": "audio/aac", ".flac": "audio/flac",
+           ".ogg": "audio/ogg", ".oga": "audio/ogg", ".opus": "audio/ogg", ".wav": "audio/wav", ".weba": "audio/webm",
+           ".wma": "audio/x-ms-wma", ".aif": "audio/aiff", ".aiff": "audio/aiff"}
+
+
+def lf_roots():
+    """Folders searched for music: the Music library, plus any extra folders in ISAI_MUSIC_DIRS (';' separated)."""
+    roots = [os.path.join(os.path.expanduser("~"), "Music")]
+    roots += [p for p in os.environ.get("ISAI_MUSIC_DIRS", "").split(";") if p.strip()]
+    return [os.path.abspath(r) for r in roots if os.path.isdir(r)]
+
+
+def lf_scan(limit=30000):
+    """Every audio file under the music folders: [{id,t,a,al,d,s,ts,f,p,x}] and an id -> path map (ids are stable)."""
+    out, index = [], {}
+    for root in lf_roots():
+        for dirpath, dirs, files in os.walk(root):
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            for fn in files:
+                ext = os.path.splitext(fn)[1].lower()
+                if ext not in LF_EXT:
+                    continue
+                full = os.path.join(dirpath, fn)
+                try:
+                    st = os.stat(full)
+                except OSError:
+                    continue
+                if st.st_size < 50 * 1024:
+                    continue
+                lid = zlib.crc32(full.lower().encode("utf-8", "replace"))
+                if lid in index:
+                    continue
+                index[lid] = full
+                stem = re.sub(r"^\s*\d{1,3}\s*[-._)]\s*", "", os.path.splitext(fn)[0].replace("_", " ")).strip()
+                artist, title = "", stem
+                if " - " in stem:
+                    artist, title = [x.strip() for x in stem.split(" - ", 1)]
+                rel = os.path.relpath(dirpath, root)
+                album = "" if rel == "." else os.path.basename(dirpath)
+                out.append({"id": lid, "t": title or stem, "a": artist, "al": album, "d": 0, "s": st.st_size,
+                            "ts": int(st.st_mtime), "f": fn, "p": "" if rel == "." else rel.replace("\\", "/"), "x": ext[1:]})
+                if len(out) >= limit:
+                    return out, index
+    out.sort(key=lambda r: r["t"].lower())
+    return out, index
+
+
+def lf_cover(path):
+    """A cover picture sitting next to the song (cover.jpg, folder.jpg, ...), or None."""
+    d = os.path.dirname(path)
+    for n in ("cover", "folder", "front", "album", "albumart"):
+        for e in (".jpg", ".jpeg", ".png"):
+            p = os.path.join(d, n + e)
+            if os.path.isfile(p):
+                return p
+    return None
 
 
 def make_handler(app):
@@ -561,6 +624,8 @@ def make_handler(app):
             path, q = self.route()
             if path.startswith("/__app/"):
                 return self.app_get(path, q)
+            if path.startswith(("/__lf/", "/__lfart/")):
+                return self.local_file(path)
             if path in ("/", "/index.html"):
                 return self.index()
             self.proxy(path)
@@ -584,6 +649,10 @@ def make_handler(app):
                 return self.send(200, json.dumps({"ready": ready, "error": s.last_error or ""}), "application/json")
             if path == "/__app/info":
                 return self.send(200, s.backend_info(), "application/json")
+            if path == "/__app/lf/scan":
+                rows, idx = lf_scan()
+                app.lf_paths = idx
+                return self.send(200, json.dumps(rows), "application/json")
             if path == "/__app/logs":
                 try:
                     after = int(q.get("after", "0"))
@@ -639,6 +708,60 @@ def make_handler(app):
                 sv.close(q.get("ok") != "1")
                 return self.send(200, "1")
             self.send(404)
+
+        def local_file(self, path):
+            """Streams a song (with Range, so seeking works) or its folder cover. Only files the scan found are served."""
+            art = path.startswith("/__lfart/")
+            tail = path.split("/", 2)[2] if path.count("/") >= 2 else ""
+            try:
+                full = app.lf_paths.get(int(tail))
+            except ValueError:
+                full = None
+            if not full or not os.path.isfile(full):
+                return self.send(404)
+            if art:
+                cov = lf_cover(full)
+                if not cov:
+                    return self.send(404)
+                with open(cov, "rb") as f:
+                    return self.send(200, f.read(), "image/png" if cov.lower().endswith(".png") else "image/jpeg",
+                                     [("Cache-Control", "max-age=86400")])
+            size = os.path.getsize(full)
+            ctype = LF_MIME.get(os.path.splitext(full)[1].lower(), "application/octet-stream")
+            start, end, code = 0, size - 1, 200
+            m = re.match(r"bytes=(\d*)-(\d*)$", (self.headers.get("Range") or "").strip())
+            if m and size:
+                if m.group(1):
+                    start = int(m.group(1))
+                    if m.group(2):
+                        end = min(end, int(m.group(2)))
+                elif m.group(2):
+                    start = max(0, size - int(m.group(2)))
+                if start >= size or start > end:
+                    return self.send(416, b"", "text/plain", [("Content-Range", "bytes */%d" % size)])
+                code = 206
+            n = end - start + 1
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(n))
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Cache-Control", "no-store")
+            if code == 206:
+                self.send_header("Content-Range", "bytes %d-%d/%d" % (start, end, size))
+            self.end_headers()
+            if self.command == "HEAD":
+                return
+            try:
+                with open(full, "rb") as f:
+                    f.seek(start)
+                    while n > 0:
+                        chunk = f.read(min(65536, n))
+                        if not chunk:
+                            break
+                        self.wfile.write(chunk)
+                        n -= len(chunk)
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass                                        # the player closed the stream (seek / next song)
 
         def index(self):
             html = fetch_live()                              # online: always the latest page

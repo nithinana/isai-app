@@ -120,6 +120,10 @@ public class MainActivity extends Activity {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) {
                 Uri u = r.getUrl();
+                if (HOST.equals(u.getHost()) && u.getPath() != null
+                        && (u.getPath().startsWith(LocalAudio.AUDIO) || u.getPath().startsWith(LocalAudio.ART))) {
+                    return LocalAudio.serve(MainActivity.this, u.getPath(), r.getRequestHeaders());   // songs on this device
+                }
                 if (HOST.equals(u.getHost()) && (forceBundled || !online())) {
                     String path = u.getPath();
                     if (path == null || path.isEmpty() || "/".equals(path)) u = u.buildUpon().path("/index.html").build();
@@ -229,6 +233,12 @@ public class MainActivity extends Activity {
         }
         if (media != null && media.onActivityResult(req, res, data)) return;   // "Save as" dialog result
         super.onActivityResult(req, res, data);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int req, String[] perms, int[] results) {
+        if (media != null && media.onPermissionResult(req, results)) return;
+        super.onRequestPermissionsResult(req, perms, results);
     }
 
     @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); }
